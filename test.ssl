@@ -1,1 +1,3 @@
-: main 16 ;
+: main 15 triple half ;
+: triple 3 * ;
+: half 2 / ;

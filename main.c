@@ -393,7 +393,14 @@ typedef struct {
 
 void compile_term(Term* term, String_Builder *code) {
     switch (term->kind) {
-    case TERM_WORD:       sb_appendf(code, "    call "SV_FMT"\n", SV_ARG(term->as.word)); break;
+    case TERM_WORD:
+        if      (sv_eq_cstr(term->as.word, "+")) sb_appendf(code, "    call op_add\n");
+        else if (sv_eq_cstr(term->as.word, "-")) sb_appendf(code, "    call op_sub\n");
+        else if (sv_eq_cstr(term->as.word, "*")) sb_appendf(code, "    call op_mul\n");
+        else if (sv_eq_cstr(term->as.word, "/")) sb_appendf(code, "    call op_div\n");
+        else if (sv_eq_cstr(term->as.word, "%")) sb_appendf(code, "    call op_mod\n");
+        else sb_appendf(code, "    call "SV_FMT"\n", SV_ARG(term->as.word));
+        break;
     case TERM_INT_LIT:
         sb_appendf(code, "    mov qword [rbp], %d\n", term->as.int_lit);
         sb_appendf(code, "    add rbp, 8\n", term->as.int_lit);
@@ -412,7 +419,7 @@ void compile_def(Def *def, String_Builder *code) {
         compile_term(def->terms.data[i], code);
     }
 
-    sb_appendf(code, "    ret", SV_ARG(def->name));
+    sb_appendf(code, "    ret\n", SV_ARG(def->name));
 }
 
 String_View compile_program(Program *program) {
@@ -431,8 +438,48 @@ String_View compile_program(Program *program) {
 
     for (size_t i = 0; i < program->count; i++) {
         compile_def(program->data[i], &sb);
+        sb_appendf(&sb, "\n");
     }
 
+    sb_appendf(&sb, "op_add:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 16]\n");
+    sb_appendf(&sb, "    add rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    mov [rbp - 16], rax\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "op_sub:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 16]\n");
+    sb_appendf(&sb, "    sub rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    mov [rbp - 16], rax\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "op_mul:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 16]\n");
+    sb_appendf(&sb, "    mov rdx, [rbp - 8]\n");
+    sb_appendf(&sb, "    imul rax, rdx\n");
+    sb_appendf(&sb, "    mov [rbp - 16], rax\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "op_div:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 16]\n");
+    sb_appendf(&sb, "    mov rbx, [rbp - 8]\n");
+    sb_appendf(&sb, "    xor rdx, rdx\n");
+    sb_appendf(&sb, "    idiv rbx\n");
+    sb_appendf(&sb, "    mov [rbp - 16], rax\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "op_mod:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 16]\n");
+    sb_appendf(&sb, "    mov rbx, [rbp - 8]\n");
+    sb_appendf(&sb, "    xor rdx, rdx\n");
+    sb_appendf(&sb, "    idiv rbx\n");
+    sb_appendf(&sb, "    mov [rbp - 16], rdx\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
     sb_appendf(&sb, "\n");
     sb_appendf(&sb, "segment readable writeable\n");
     sb_appendf(&sb, "data_stack rd 8192\n");
