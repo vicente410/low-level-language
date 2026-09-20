@@ -174,7 +174,22 @@ Token read_string_lit(Lexer *lexer) {
 
     next_char(lexer);
     while ((ch = next_char(lexer)) != '"') {
-        da_push(&sb, ch);
+        if (ch == '\\') {
+            ch = next_char(lexer);
+            if (ch == 'n') {
+                da_push(&sb, '\n');
+            } else if (ch == 't') {
+                da_push(&sb, '\t');
+            } else if (ch == '0') {
+                da_push(&sb, '\0');
+            } else {
+                String_View pos_sv = position_to_sv(lexer->pos);
+                fprintf(stderr, SV_FMT" ERROR: invalid escape character '%c'\n", SV_ARG(pos_sv), ch);
+                exit(1);
+            }
+        } else {
+            da_push(&sb, ch);
+        }
     }
 
     token.kind = TOKEN_STRING_LIT;
@@ -390,8 +405,9 @@ typedef struct {
     String_Builder data;
     String_Builder code;
 } Output;
+static int string_num = 0;
 
-void compile_term(Term* term, String_Builder *code) {
+void compile_term(Term* term, String_Builder *code, String_Builder *data) {
     switch (term->kind) {
     case TERM_WORD:
         if      (sv_eq_cstr(term->as.word, "+")) sb_appendf(code, "    call op_add\n");
@@ -406,17 +422,35 @@ void compile_term(Term* term, String_Builder *code) {
         sb_appendf(code, "    add rbp, 8\n", term->as.int_lit);
         break;
     case TERM_STRING_LIT:
+        sb_appendf(data, "string_%d db '", string_num);
+        for (size_t i = 0; i < term->as.string_lit.count; i++) {
+            if (isprint(term->as.string_lit.data[i])) {
+                sb_appendf(data, "%c", term->as.string_lit.data[i]);
+            } else {
+                sb_appendf(data, "', %d, '", term->as.string_lit.data[i]);
+                /*if (i != term->as.string_lit.count - 1) {
+                    sb_appendf(data, ",'");
+                }*/
+            }
+        }
+        sb_appendf(data, "',0\n");
+        sb_appendf(data, "string_%d_len = $ - string_%d\n", string_num, string_num);
+        sb_appendf(code, "    mov qword [rbp], string_%d_len\n", string_num);
+        sb_appendf(code, "    mov qword [rbp + 8], string_%d\n", string_num);
+        sb_appendf(code, "    add rbp, 16\n", term->as.int_lit);
+        string_num += 1;
+        break;
     case TERM_QUOTATION:
         fprintf(stderr, "TODO: implement");
         exit(1);
     }
 }
 
-void compile_def(Def *def, String_Builder *code) {
+void compile_def(Def *def, String_Builder *code, String_Builder *data) {
     sb_appendf(code, SV_FMT":\n", SV_ARG(def->name));
 
     for (size_t i = 0; i < def->terms.count; i++) {
-        compile_term(def->terms.data[i], code);
+        compile_term(def->terms.data[i], code, data);
     }
 
     sb_appendf(code, "    ret\n", SV_ARG(def->name));
@@ -424,6 +458,7 @@ void compile_def(Def *def, String_Builder *code) {
 
 String_View compile_program(Program *program) {
     String_Builder sb = {0};
+    String_Builder data = {0};
     sb_appendf(&sb, "format ELF64 executable 3\n");
     sb_appendf(&sb, "\n");
     sb_appendf(&sb, "segment readable executable\n");
@@ -437,7 +472,7 @@ String_View compile_program(Program *program) {
     sb_appendf(&sb, "\n");
 
     for (size_t i = 0; i < program->count; i++) {
-        compile_def(program->data[i], &sb);
+        compile_def(program->data[i], &sb, &data);
         sb_appendf(&sb, "\n");
     }
 
@@ -481,8 +516,39 @@ String_View compile_program(Program *program) {
     sb_appendf(&sb, "    sub rbp, 8\n");
     sb_appendf(&sb, "    ret\n");
     sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "syscall0:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "    sub rbp, 8\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "syscall1:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    mov rdi, [rbp - 16]\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "    sub rbp, 16\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "syscall2:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    mov rdi, [rbp - 16]\n");
+    sb_appendf(&sb, "    mov rsi, [rbp - 24]\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "    sub rbp, 24\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "syscall3:\n");
+    sb_appendf(&sb, "    mov rax, [rbp - 8]\n");
+    sb_appendf(&sb, "    mov rdi, [rbp - 16]\n");
+    sb_appendf(&sb, "    mov rsi, [rbp - 24]\n");
+    sb_appendf(&sb, "    mov rdx, [rbp - 32]\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "    sub rbp, 32\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
     sb_appendf(&sb, "segment readable writeable\n");
     sb_appendf(&sb, "data_stack rd 8192\n");
+    da_append(&sb, &data);
 
     return sv_from_sb(sb);
 }
