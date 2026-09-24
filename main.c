@@ -302,12 +302,20 @@ bool accept_token(Lexer *lexer, TokenKind kind) {
 
 typedef enum {
     EXPR_INT_LIT,
+    EXPR_OP,
 } ExprKind;
 
 typedef struct {
+    String_View op;
+    struct Expr *lhs;
+    struct Expr *rhs;
+} Op;
+
+typedef struct Expr {
     ExprKind kind;
     union {
         int int_lit;
+        Op op;
     } as;
 } Expr;
 
@@ -359,6 +367,13 @@ String_View expr_to_sv(Expr expr, size_t indent) {
     
     switch (expr.kind) {
     case EXPR_INT_LIT:    sb_appendf(&sb, "INT(%d)", expr.as.int_lit); break;
+    case EXPR_OP: {
+        String_View lhs_sv = expr_to_sv(*expr.as.op.lhs, indent + 1);
+        String_View rhs_sv = expr_to_sv(*expr.as.op.rhs, indent + 1);
+        sb_appendf(&sb, "OP("SV_FMT")\n", SV_ARG(expr.as.op.op));
+        sb_appendf(&sb, SV_FMT"\n", SV_ARG(lhs_sv));
+        sb_appendf(&sb, SV_FMT, SV_ARG(rhs_sv));
+    } break;
     }
     
     return sv_from_sb(sb);
@@ -399,21 +414,58 @@ String_View decl_to_sv(Decl decl, size_t indent) {
     return sv_from_sb(sb);
 }
 
-Expr parse_expr(Lexer *lexer) {
-    Expr expr = {};
-    Token token = next_token(lexer);
+Expr *parse_expr(Lexer *lexer, size_t precedence) {
+    Expr *expr;
+
+    if (precedence == 4) {
+        Token token = next_token(lexer);
   
-    switch (token.kind) {
-    case TOKEN_INT_LIT:
-        expr.kind = EXPR_INT_LIT;
-        expr.as.int_lit = token.as.int_lit;
-        break;
-    default:
-        String_View pos_sv = position_to_sv(token.pos);
-        fprintf(stderr, SV_FMT" ERROR: invalid expression\n", SV_ARG(pos_sv));
-        exit(1);
+        expr = calloc(1, sizeof(Expr));
+
+        switch (token.kind) {
+        case TOKEN_INT_LIT:
+            expr->kind = EXPR_INT_LIT;
+            expr->as.int_lit = token.as.int_lit;
+            break;
+        case TOKEN_OPEN_PAREN:
+            expr = parse_expr(lexer, 0);
+            expect_token(lexer, TOKEN_CLOSE_PAREN);
+            break;
+        default:
+            String_View pos_sv = position_to_sv(token.pos);
+            fprintf(stderr, SV_FMT" ERROR: invalid expression\n", SV_ARG(pos_sv));
+            exit(1);
+        }
+    } else {
+        expr = parse_expr(lexer, precedence + 1);
     }
-    
+
+    while (peek_token(lexer).kind == TOKEN_OP && (
+        (precedence == 3 && (
+            sv_eq_cstr(peek_token(lexer).as.op, "."))) ||
+        (precedence == 2 && (
+            sv_eq_cstr(peek_token(lexer).as.op, "*") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "/") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "%"))) ||
+        (precedence == 1 && (
+            sv_eq_cstr(peek_token(lexer).as.op, "+") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "-"))) ||
+        (precedence == 0 && (
+            sv_eq_cstr(peek_token(lexer).as.op, "<") ||
+            sv_eq_cstr(peek_token(lexer).as.op, ">") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "<=") ||
+            sv_eq_cstr(peek_token(lexer).as.op, ">=") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "==") ||
+            sv_eq_cstr(peek_token(lexer).as.op, "!=")))
+    )) {
+        Expr *new_expr = calloc(1, sizeof(Expr));
+        new_expr->kind = EXPR_OP;
+        new_expr->as.op.lhs = expr;
+        new_expr->as.op.op = next_token(lexer).as.op;
+        new_expr->as.op.rhs = parse_expr(lexer, precedence + 1);
+        expr = new_expr;
+    }
+
     return expr;
 }
 
@@ -424,7 +476,7 @@ Stmt parse_stmt(Lexer *lexer) {
     switch (token.kind) {
     case TOKEN_RET:
         stmt.kind = STMT_RET;
-        stmt.as.ret = parse_expr(lexer);
+        stmt.as.ret = *parse_expr(lexer, 0);
         break;
     default:
         String_View pos_sv = position_to_sv(token.pos);
@@ -474,6 +526,94 @@ Program parse_program(Lexer *lexer) {
     return program;
 }
 
+// --- COMPILER ---
+
+void compile_expr(String_Builder *sb, Expr expr) {
+    switch (expr.kind) {
+    case EXPR_INT_LIT:
+        sb_appendf(sb, "    push %d\n", expr.as.int_lit);
+        break;
+    case EXPR_OP:
+        compile_expr(sb, *expr.as.op.lhs);
+        compile_expr(sb, *expr.as.op.rhs);
+ 
+        if (sv_eq_cstr(expr.as.op.op, "+")) {
+            sb_appendf(sb, "    pop rbx\n");
+            sb_appendf(sb, "    pop rax\n");
+            sb_appendf(sb, "    add rax, rbx\n");
+            sb_appendf(sb, "    push rax\n");
+        } else if (sv_eq_cstr(expr.as.op.op, "-")) {
+            sb_appendf(sb, "    pop rbx\n");
+            sb_appendf(sb, "    pop rax\n");
+            sb_appendf(sb, "    sub rax, rbx\n");
+            sb_appendf(sb, "    push rax\n");
+        } else if (sv_eq_cstr(expr.as.op.op, "*")) {
+            sb_appendf(sb, "    pop rdx\n");
+            sb_appendf(sb, "    pop rax\n");
+            sb_appendf(sb, "    imul rax, rdx\n");
+            sb_appendf(sb, "    push rax\n");
+        } else if (sv_eq_cstr(expr.as.op.op, "/")) {
+            sb_appendf(sb, "    pop rbx\n");
+            sb_appendf(sb, "    pop rax\n");
+            sb_appendf(sb, "    xor rdx, rdx\n");
+            sb_appendf(sb, "    idiv rbx\n");
+            sb_appendf(sb, "    push rax\n");
+        } else if (sv_eq_cstr(expr.as.op.op, "%")) {
+            sb_appendf(sb, "    pop rbx\n");
+            sb_appendf(sb, "    pop rax\n");
+            sb_appendf(sb, "    xor rdx, rdx\n");
+            sb_appendf(sb, "    idiv rbx\n");
+            sb_appendf(sb, "    push rdx\n");
+        } else {
+            assert(false);
+        }
+        break;
+    }
+}
+
+void compile_fn(String_Builder *sb, Fn fn) {
+    sb_appendf(sb, SV_FMT":\n", SV_ARG(fn.id));
+
+    for (size_t i = 0; i < fn.body.count; i++) {
+        Stmt stmt = fn.body.data[i];
+
+        switch (stmt.kind) {
+        case STMT_RET:
+            compile_expr(sb, stmt.as.ret);
+            sb_appendf(sb, "    pop rax\n");
+            break;
+        }
+    }
+ 
+    sb_appendf(sb, "    ret\n");
+}
+
+String_View compile_program(Program program) {
+    String_Builder sb = {0};
+
+    sb_appendf(&sb, "format ELF64 executable 3\n");
+    sb_appendf(&sb, "\n");
+    sb_appendf(&sb, "segment readable executable\n");
+    sb_appendf(&sb, "entry _start\n");
+    sb_appendf(&sb, "_start:\n");
+    sb_appendf(&sb, "    call main\n");
+    sb_appendf(&sb, "    mov rdi, rax\n");
+    sb_appendf(&sb, "    mov rax, 60\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "\n");
+
+    for (size_t i = 0; i < program.count; i++) {
+        Decl decl = program.data[i];
+        switch (decl.kind) {
+        case DECL_FN: 
+            compile_fn(&sb, decl.as.fn);
+        }
+        sb_appendf(&sb, "\n");
+    }
+    
+    return sv_from_sb(sb);
+}
+
 // --- MAIN ---
 
 int main(int argc, char **argv) {
@@ -488,11 +628,13 @@ int main(int argc, char **argv) {
     lexer_init(&lexer, program_name);
     
     Program program = parse_program(&lexer);
+    String_View assembly = compile_program(program);
+    printf(SV_FMT, SV_ARG(assembly));
     
-    for (size_t i = 0; i < program.count; i++) {
+    /*for (size_t i = 0; i < program.count; i++) {
         String_View decl_sv = decl_to_sv(program.data[i], 0);
         printf(SV_FMT"\n", SV_ARG(decl_sv));
-    }
+    }*/
     
     /*for (size_t i = 0; i < asts.count; i++) {
         String_View ast_sv = ast_to_sv(asts.data[i]);
@@ -505,9 +647,6 @@ int main(int argc, char **argv) {
         String_View token_sv = token_to_sv(token);
         printf(SV_FMT"\n", SV_ARG(token_sv));
     }*/
-    //Stmt stmt = parse_stmt(&lexer);
-    //String_View stmt_sv = stmt_to_sv(stmt);
-    //printf(SV_FMT"\n", SV_ARG(stmt_sv));
 
     return 0;
 }
