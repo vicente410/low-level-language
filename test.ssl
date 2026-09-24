@@ -1,3 +1,4 @@
-: main "Hello World!\n" print ;
-: print 1 write ;
-: write 1 syscall3 ;
+fn main() {
+    return 43
+    return 0
+}
