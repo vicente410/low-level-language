@@ -32,6 +32,7 @@ typedef enum {
     TOKEN_OPEN_CURLY,
     TOKEN_CLOSE_CURLY,
     TOKEN_RET,
+    TOKEN_VAR,
     TOKEN_IF,
     TOKEN_ELSE,
     TOKEN_FN,
@@ -95,6 +96,7 @@ String_View token_to_sv(Token token) {
     case TOKEN_OPEN_CURLY:  sb_appendf(&sb, "TOKEN_OPEN_CURLY"); break;
     case TOKEN_CLOSE_CURLY: sb_appendf(&sb, "TOKEN_CLOSE_CURLY"); break;
     case TOKEN_RET:         sb_appendf(&sb, "TOKEN_RET"); break;
+    case TOKEN_VAR:         sb_appendf(&sb, "TOKEN_VAR"); break;
     case TOKEN_IF:          sb_appendf(&sb, "TOKEN_IF"); break;
     case TOKEN_ELSE:        sb_appendf(&sb, "TOKEN_ELSE"); break;
     case TOKEN_FN:          sb_appendf(&sb, "TOKEN_FN"); break;
@@ -162,6 +164,8 @@ Token read_id_or_keyword(Lexer *lexer) {
 
     if (sv_eq_cstr(sv_from_sb(sb), "return")) {
         token.kind = TOKEN_RET;
+    } else if (sv_eq_cstr(sv_from_sb(sb), "var")) {
+        token.kind = TOKEN_VAR;
     } else if (sv_eq_cstr(sv_from_sb(sb), "if")) {
         token.kind = TOKEN_IF;
     } else if (sv_eq_cstr(sv_from_sb(sb), "else")) {
@@ -302,6 +306,7 @@ bool accept_token(Lexer *lexer, TokenKind kind) {
 
 typedef enum {
     EXPR_INT_LIT,
+    EXPR_ID,
     EXPR_OP,
 } ExprKind;
 
@@ -315,20 +320,28 @@ typedef struct Expr {
     ExprKind kind;
     union {
         int int_lit;
+        String_View id;
         Op op;
     } as;
 } Expr;
 
 struct Stmts;
 
+typedef struct {
+    String_View id;
+    Expr value;
+} Var;
+
 typedef enum {
     STMT_RET,
+    STMT_VAR,
 } StmtKind;
 
 typedef struct {
     StmtKind kind;
     union {
         Expr ret;
+        Var var;
     } as;
 } Stmt;
 
@@ -366,7 +379,8 @@ String_View expr_to_sv(Expr expr, size_t indent) {
     for (size_t i = 0; i < indent; i++) sb_appendf(&sb, "    ");
     
     switch (expr.kind) {
-    case EXPR_INT_LIT:    sb_appendf(&sb, "INT(%d)", expr.as.int_lit); break;
+    case EXPR_INT_LIT: sb_appendf(&sb, "INT(%d)", expr.as.int_lit); break;
+    case EXPR_ID:      sb_appendf(&sb, "ID("SV_FMT")", SV_ARG(expr.as.id)); break;
     case EXPR_OP: {
         String_View lhs_sv = expr_to_sv(*expr.as.op.lhs, indent + 1);
         String_View rhs_sv = expr_to_sv(*expr.as.op.rhs, indent + 1);
@@ -385,11 +399,16 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
     for (size_t i = 0; i < indent; i++) sb_appendf(&sb, "    ");
     
     switch (stmt.kind) {
-    case STMT_RET:
+    case STMT_RET: {
         sb_appendf(&sb, "RET\n");
         String_View expr_sv = expr_to_sv(stmt.as.ret, indent + 1);
         sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
-        break;
+    } break;
+    case STMT_VAR: {
+        sb_appendf(&sb, "VAR "SV_FMT"\n", SV_ARG(stmt.as.var.id));
+        String_View expr_sv = expr_to_sv(stmt.as.var.value, indent + 1);
+        sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
+    } break;
     }
     
     return sv_from_sb(sb);
@@ -426,6 +445,10 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
         case TOKEN_INT_LIT:
             expr->kind = EXPR_INT_LIT;
             expr->as.int_lit = token.as.int_lit;
+            break;
+        case TOKEN_ID:
+            expr->kind = EXPR_ID;
+            expr->as.id = token.as.id;
             break;
         case TOKEN_OPEN_PAREN:
             expr = parse_expr(lexer, 0);
@@ -478,6 +501,17 @@ Stmt parse_stmt(Lexer *lexer) {
         stmt.kind = STMT_RET;
         stmt.as.ret = *parse_expr(lexer, 0);
         break;
+    case TOKEN_VAR:
+        stmt.kind = STMT_VAR;
+        
+        token = next_token(lexer);
+        assert(token.kind == TOKEN_ID);
+        stmt.as.var.id = token.as.id;
+        
+        expect_token(lexer, TOKEN_EQUAL);
+        
+        stmt.as.var.value = *parse_expr(lexer, 0);
+        break;
     default:
         String_View pos_sv = position_to_sv(token.pos);
         fprintf(stderr, SV_FMT" ERROR: invalid statement\n", SV_ARG(pos_sv));
@@ -528,14 +562,40 @@ Program parse_program(Lexer *lexer) {
 
 // --- COMPILER ---
 
-void compile_expr(String_Builder *sb, Expr expr) {
+typedef struct {
+    String_View id;
+    size_t offset;
+} VarOffset;
+
+typedef struct {
+    VarOffset *data;
+    size_t count;
+    size_t capacity;
+} VarOffsets;
+
+size_t find_var_offset(VarOffsets *offsets, String_View id) {
+    for (size_t i = 0; i < offsets->count; i++) {
+        if (sv_eq(offsets->data[i].id, id)) {
+            return offsets->data[i].offset;
+        }
+    }
+    
+    fprintf(stderr, "ERROR: Undefined var");
+    exit(1);
+}
+
+void compile_expr(String_Builder *sb, Expr expr, VarOffsets *offsets) {
     switch (expr.kind) {
     case EXPR_INT_LIT:
         sb_appendf(sb, "    push %d\n", expr.as.int_lit);
         break;
+    case EXPR_ID:
+        sb_appendf(sb, "    mov rax, [rbp - %zu]\n", find_var_offset(offsets, expr.as.id) + 8);
+        sb_appendf(sb, "    push rax\n", expr.as.int_lit);
+        break;
     case EXPR_OP:
-        compile_expr(sb, *expr.as.op.lhs);
-        compile_expr(sb, *expr.as.op.rhs);
+        compile_expr(sb, *expr.as.op.lhs, offsets);
+        compile_expr(sb, *expr.as.op.rhs, offsets);
  
         if (sv_eq_cstr(expr.as.op.op, "+")) {
             sb_appendf(sb, "    pop rbx\n");
@@ -573,18 +633,35 @@ void compile_expr(String_Builder *sb, Expr expr) {
 
 void compile_fn(String_Builder *sb, Fn fn) {
     sb_appendf(sb, SV_FMT":\n", SV_ARG(fn.id));
+    sb_appendf(sb, "    push rbp\n");
+    sb_appendf(sb, "    mov rbp, rsp\n");
+ 
+    size_t offset = 0;
+    VarOffsets offsets = {};
 
     for (size_t i = 0; i < fn.body.count; i++) {
         Stmt stmt = fn.body.data[i];
 
         switch (stmt.kind) {
         case STMT_RET:
-            compile_expr(sb, stmt.as.ret);
+            compile_expr(sb, stmt.as.ret, &offsets);
             sb_appendf(sb, "    pop rax\n");
+            break;
+        case STMT_VAR:
+            compile_expr(sb, stmt.as.var.value, &offsets);
+ 
+            da_push(&offsets, ((VarOffset) {
+                .id = stmt.as.var.id,
+                .offset = offset,
+            }));
+ 
+            offset += 8;
             break;
         }
     }
  
+    sb_appendf(sb, "    mov rsp, rbp\n");
+    sb_appendf(sb, "    pop rbp\n");
     sb_appendf(sb, "    ret\n");
 }
 
