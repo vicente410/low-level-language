@@ -14,7 +14,8 @@ int run_command(char *const cmd[]) {
         exit(1);
     case 0:
         execvp(cmd[0], cmd);
-        exit(0);
+        perror("execvp");
+        exit(1);
     default:
         int status;
         wait(&status);
@@ -33,18 +34,19 @@ int main() {
     stat("build", &bin_attr);
     
     if (c_attr.st_mtime > bin_attr.st_mtime) {
-        char *const recompile_cmd[] = { "cc", "-o", "build", "build.c" };
+        char *const recompile_cmd[] = { "cc", "-o", "build", "build.c", NULL };
         run_command(recompile_cmd);
-        char *const new_bin_cmd[] = { "./build" };
+        char *const new_bin_cmd[] = { "./build", NULL };
         execvp(new_bin_cmd[0], new_bin_cmd);
     }
 
     char *const cmd[] = {
         "cc",
         "-o", "main",
-        "main.c",
+        "src/main.c",
         "-Wall",
         "-Wextra",
+        NULL
     };
     return run_command(cmd);
 }
