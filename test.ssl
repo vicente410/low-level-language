@@ -1,6 +1,4 @@
 fn main() {
-    var x = 34
-    var y = 6
-    var z = 13
-    return y + z
+    var x = 4
+    return x + 34 * 2
 }

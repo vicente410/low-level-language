@@ -354,7 +354,7 @@ typedef struct Stmts {
 typedef struct {
     String_View id;
     Stmts body;
-} Fn;
+} AstFn;
 
 typedef enum {
     DECL_FN
@@ -363,7 +363,7 @@ typedef enum {
 typedef struct {
     DeclKind kind;
     union {
-        Fn fn;
+        AstFn fn;
     } as;
 } Decl;
 
@@ -371,7 +371,7 @@ typedef struct {
     Decl *data;
     size_t count;
     size_t capacity;
-} Program;
+} AstProgram;
 
 String_View expr_to_sv(Expr expr, size_t indent) {
     String_Builder sb = {};
@@ -550,8 +550,8 @@ Decl parse_decl(Lexer *lexer) {
     return decl;
 }
 
-Program parse_program(Lexer *lexer) {
-    Program program = {};
+AstProgram parse_program(Lexer *lexer) {
+    AstProgram program = {};
     
     while (peek_token(lexer).kind != TOKEN_EOF) {
         da_push(&program, parse_decl(lexer));
@@ -560,102 +560,323 @@ Program parse_program(Lexer *lexer) {
     return program;
 }
 
-// --- COMPILER ---
+// --- IR ---
+
+typedef enum {
+    IR_INT,
+    IR_REG,
+} IrArgKind;
+
+typedef struct {
+    IrArgKind kind;
+ 
+    union {
+        int int_lit;
+        String_View reg;
+    } as;
+} IrArg;
+
+typedef enum {
+    IR_LABEL,
+    IR_MOV,
+    IR_RET,
+    IR_ADD,
+    IR_SUB,
+    IR_MUL,
+    IR_DIV,
+    IR_MOD,
+} IrInstKind;
+
+typedef struct {
+    IrInstKind kind;
+    String_View label;
+    IrArg op1;
+    IrArg op2;
+    IrArg op3;
+} IrInst;
 
 typedef struct {
     String_View id;
-    size_t offset;
-} VarOffset;
-
-typedef struct {
-    VarOffset *data;
+    IrInst *data;
     size_t count;
     size_t capacity;
-} VarOffsets;
+} IrFn;
 
-size_t find_var_offset(VarOffsets *offsets, String_View id) {
+typedef struct {
+    IrFn *data;
+    size_t count;
+    size_t capacity;
+} IrProgram;
+
+String_View ir_arg_to_sv(IrArg arg) {
+    String_Builder sb = {};
+
+    switch (arg.kind) {
+    case IR_INT: sb_appendf(&sb, "%d", arg.as.int_lit); break;
+    case IR_REG: sb_appendf(&sb, SV_FMT, SV_ARG(arg.as.reg)); break;
+    }
+
+    return sv_from_sb(sb);
+}
+
+String_View ir_fn_to_sv(IrFn ir) {
+    String_Builder sb = {};
+    sb_appendf(&sb, SV_FMT":\n", SV_ARG(ir.id));
+ 
+    for (size_t i = 0; i < ir.count; i++) {
+        IrInst inst = ir.data[i];
+        
+        String_View sv_op1 = ir_arg_to_sv(inst.op1);
+        String_View sv_op2 = ir_arg_to_sv(inst.op2);
+        String_View sv_op3 = ir_arg_to_sv(inst.op3);
+
+        switch (inst.kind) {
+        case IR_LABEL: sb_appendf(&sb, SV_FMT, SV_ARG(inst.label)); break;
+        case IR_MOV:   sb_appendf(&sb, "    mov "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2)); break;
+        case IR_RET:   sb_appendf(&sb, "    ret "SV_FMT"\n", SV_ARG(sv_op1)); break;
+        case IR_ADD:   sb_appendf(&sb, "    add "SV_FMT", "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3)); break;
+        case IR_SUB:   sb_appendf(&sb, "    sub "SV_FMT", "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3)); break;
+        case IR_MUL:   sb_appendf(&sb, "    mul "SV_FMT", "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3)); break;
+        case IR_DIV:   sb_appendf(&sb, "    div "SV_FMT", "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3)); break;
+        case IR_MOD:   sb_appendf(&sb, "    mod "SV_FMT", "SV_FMT", "SV_FMT"\n",
+                                  SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3)); break;
+        }
+    }
+ 
+    return sv_from_sb(sb);
+}
+
+IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
+    static size_t reg_num = 0;
+
+    switch (expr.kind) {
+    case EXPR_INT_LIT: {
+        IrArg ir_arg = {};
+        ir_arg.kind = IR_INT;
+        ir_arg.as.int_lit = expr.as.int_lit;
+        return ir_arg;
+    }
+    case EXPR_ID: {
+        IrArg ir_arg = {};
+        ir_arg.kind = IR_REG;
+        ir_arg.as.reg = expr.as.id;
+        return ir_arg;
+    }
+    case EXPR_OP: {
+        IrInst inst = {};
+ 
+        String_Builder sb = {};
+        sb_appendf(&sb, "t%d", reg_num++);
+        inst.op1.kind = IR_REG;
+        inst.op1.as.reg = sv_from_sb(sb);
+ 
+        inst.op2 = gen_ir_expr(*expr.as.op.lhs, ir_fn);
+        inst.op3 = gen_ir_expr(*expr.as.op.rhs, ir_fn);
+ 
+        if (sv_eq_cstr(expr.as.op.op, "+")) {
+            inst.kind = IR_ADD;
+        } else if (sv_eq_cstr(expr.as.op.op, "-")) {
+            inst.kind = IR_SUB;
+        } else if (sv_eq_cstr(expr.as.op.op, "*")) {
+            inst.kind = IR_MUL;
+        } else if (sv_eq_cstr(expr.as.op.op, "/")) {
+            inst.kind = IR_DIV;
+        } else if (sv_eq_cstr(expr.as.op.op, "%")) {
+            inst.kind = IR_MOD;
+        } else {
+            assert(false);
+        }
+        
+        da_push(ir_fn, inst);
+        return inst.op1;
+    }
+    }
+    
+    assert(false);
+}
+
+IrFn gen_ir_fn(AstFn fn) {
+    IrFn ir_fn = {};
+    ir_fn.id = fn.id;
+ 
+    for (size_t i = 0; i < fn.body.count; i++) {
+        Stmt stmt = fn.body.data[i];
+        IrInst inst;
+
+        switch (stmt.kind) {
+        case STMT_RET:
+            inst.kind = IR_RET;
+            inst.op1 = gen_ir_expr(stmt.as.ret, &ir_fn);
+            break;
+        case STMT_VAR:
+            inst.kind = IR_MOV;
+            inst.op1.kind = IR_REG;
+            inst.op1.as.reg = stmt.as.var.id;
+            inst.op2 = gen_ir_expr(stmt.as.var.value, &ir_fn);
+            break;
+        }
+        da_push(&ir_fn, inst);
+    }
+ 
+    return ir_fn;
+}
+
+IrProgram gen_ir_program(AstProgram ast) {
+    IrProgram ir;
+ 
+    for (size_t i = 0; i < ast.count; i++) {
+        assert(ast.data[i].kind == DECL_FN);
+        da_push(&ir, gen_ir_fn(ast.data[i].as.fn));
+    }
+ 
+    return ir;
+}
+
+// --- COMPILER ---
+
+typedef struct {
+    String_View reg;
+    size_t offset;
+} RegOffset;
+
+typedef struct {
+    RegOffset *data;
+    size_t count;
+    size_t capacity;
+} RegOffsets;
+
+int get_reg_offset(RegOffsets *offsets, String_View reg) {
     for (size_t i = 0; i < offsets->count; i++) {
-        if (sv_eq(offsets->data[i].id, id)) {
+        if (sv_eq(offsets->data[i].reg, reg)) {
             return offsets->data[i].offset;
         }
     }
     
-    fprintf(stderr, "ERROR: Undefined var");
-    exit(1);
+    return -1;
 }
 
-void compile_expr(String_Builder *sb, Expr expr, VarOffsets *offsets) {
-    switch (expr.kind) {
-    case EXPR_INT_LIT:
-        sb_appendf(sb, "    push %d\n", expr.as.int_lit);
-        break;
-    case EXPR_ID:
-        sb_appendf(sb, "    mov rax, [rbp - %zu]\n", find_var_offset(offsets, expr.as.id) + 8);
-        sb_appendf(sb, "    push rax\n", expr.as.int_lit);
-        break;
-    case EXPR_OP:
-        compile_expr(sb, *expr.as.op.lhs, offsets);
-        compile_expr(sb, *expr.as.op.rhs, offsets);
- 
-        if (sv_eq_cstr(expr.as.op.op, "+")) {
-            sb_appendf(sb, "    pop rbx\n");
-            sb_appendf(sb, "    pop rax\n");
-            sb_appendf(sb, "    add rax, rbx\n");
-            sb_appendf(sb, "    push rax\n");
-        } else if (sv_eq_cstr(expr.as.op.op, "-")) {
-            sb_appendf(sb, "    pop rbx\n");
-            sb_appendf(sb, "    pop rax\n");
-            sb_appendf(sb, "    sub rax, rbx\n");
-            sb_appendf(sb, "    push rax\n");
-        } else if (sv_eq_cstr(expr.as.op.op, "*")) {
-            sb_appendf(sb, "    pop rdx\n");
-            sb_appendf(sb, "    pop rax\n");
-            sb_appendf(sb, "    imul rax, rdx\n");
-            sb_appendf(sb, "    push rax\n");
-        } else if (sv_eq_cstr(expr.as.op.op, "/")) {
-            sb_appendf(sb, "    pop rbx\n");
-            sb_appendf(sb, "    pop rax\n");
-            sb_appendf(sb, "    xor rdx, rdx\n");
-            sb_appendf(sb, "    idiv rbx\n");
-            sb_appendf(sb, "    push rax\n");
-        } else if (sv_eq_cstr(expr.as.op.op, "%")) {
-            sb_appendf(sb, "    pop rbx\n");
-            sb_appendf(sb, "    pop rax\n");
-            sb_appendf(sb, "    xor rdx, rdx\n");
-            sb_appendf(sb, "    idiv rbx\n");
-            sb_appendf(sb, "    push rdx\n");
-        } else {
-            assert(false);
+size_t get_num_ops(IrInst inst) {
+    switch (inst.kind) {
+    case IR_LABEL: return 0;
+    case IR_MOV:   return 2;
+    case IR_RET:   return 1;
+    case IR_ADD:   return 3;
+    case IR_SUB:   return 3;
+    case IR_MUL:   return 3;
+    case IR_DIV:   return 3;
+    case IR_MOD:   return 3;
+    default: assert(false);
+    }
+}
+
+size_t allocate_registers(RegOffsets *offsets, IrFn fn) {
+    size_t offset = 0;
+
+    for (size_t i = 0; i < fn.count; i++) {
+        IrInst inst = fn.data[i];
+        size_t num_ops = get_num_ops(inst);
+        
+        for (size_t op = 1; op <= num_ops; op++) {
+            IrArg arg;
+            
+            if (op == 1) arg = inst.op1;
+            else if (op == 2) arg = inst.op2;
+            else if (op == 3) arg = inst.op3;
+            else assert(false);
+            
+            if (arg.kind == IR_REG && get_reg_offset(offsets, arg.as.reg) == -1) {
+                da_push(offsets, ((RegOffset) {
+                    .reg = arg.as.reg,
+                    .offset = offset,
+                }));
+                
+                offset += 8;
+            }
         }
+    }
+    
+    return offset;
+}
+
+void append_arg(String_Builder *sb, RegOffsets *offsets, IrArg arg) {
+    switch (arg.kind) {
+    case IR_REG:
+        sb_appendf(sb, "[rbp - %zu]", get_reg_offset(offsets, arg.as.reg));
+        break;
+    case IR_INT:
+        sb_appendf(sb, "%d", arg.as.int_lit);
         break;
     }
 }
 
-void compile_fn(String_Builder *sb, Fn fn) {
+void compile_fn(String_Builder *sb, IrFn fn) {
     sb_appendf(sb, SV_FMT":\n", SV_ARG(fn.id));
     sb_appendf(sb, "    push rbp\n");
     sb_appendf(sb, "    mov rbp, rsp\n");
  
-    size_t offset = 0;
-    VarOffsets offsets = {};
+    RegOffsets offsets = {};
+    sb_appendf(sb, "    sub rsp, %zu\n", allocate_registers(&offsets, fn));
 
-    for (size_t i = 0; i < fn.body.count; i++) {
-        Stmt stmt = fn.body.data[i];
+    for (size_t i = 0; i < fn.count; i++) {
+        IrInst inst = fn.data[i];
+        assert(inst.op1.kind == IR_REG);
 
-        switch (stmt.kind) {
-        case STMT_RET:
-            compile_expr(sb, stmt.as.ret, &offsets);
-            sb_appendf(sb, "    pop rax\n");
+        switch (inst.kind) {
+        case IR_LABEL:
+            sb_appendf(sb, SV_FMT":\n", SV_ARG(inst.label));
             break;
-        case STMT_VAR:
-            compile_expr(sb, stmt.as.var.value, &offsets);
- 
-            da_push(&offsets, ((VarOffset) {
-                .id = stmt.as.var.id,
-                .offset = offset,
-            }));
- 
-            offset += 8;
+        case IR_MOV:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_RET:
+            sb_appendf(sb, "    mov rax, [rbp - %zu]\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_ADD:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    add rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_SUB:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    sub rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_MUL:
+            sb_appendf(sb, "    mov rdx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    imul rax, rdx");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_DIV:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rdx, rdx");
+            sb_appendf(sb, "\n    idiv rbx");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n", get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_MOD:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rdx, rdx");
+            sb_appendf(sb, "\n    idiv rbx");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rdx\n", get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         }
     }
@@ -665,7 +886,7 @@ void compile_fn(String_Builder *sb, Fn fn) {
     sb_appendf(sb, "    ret\n");
 }
 
-String_View compile_program(Program program) {
+String_View compile_program(IrProgram program) {
     String_Builder sb = {0};
 
     sb_appendf(&sb, "format ELF64 executable 3\n");
@@ -680,11 +901,7 @@ String_View compile_program(Program program) {
     sb_appendf(&sb, "\n");
 
     for (size_t i = 0; i < program.count; i++) {
-        Decl decl = program.data[i];
-        switch (decl.kind) {
-        case DECL_FN: 
-            compile_fn(&sb, decl.as.fn);
-        }
+        compile_fn(&sb, program.data[i]);
         sb_appendf(&sb, "\n");
     }
     
@@ -704,9 +921,14 @@ int main(int argc, char **argv) {
     Lexer lexer = {};
     lexer_init(&lexer, program_name);
     
-    Program program = parse_program(&lexer);
-    String_View assembly = compile_program(program);
-    printf(SV_FMT, SV_ARG(assembly));
+    AstProgram ast = parse_program(&lexer);
+    IrProgram ir = gen_ir_program(ast);
+    //for (size_t i = 0; i < ir.count; i++) {
+    //    String_View ir_sv = ir_fn_to_sv(ir.data[i]);
+    //    printf(SV_FMT"\n", SV_ARG(ir_sv));
+    //}
+    String_View assembly = compile_program(ir);
+    printf(SV_FMT"\n", SV_ARG(assembly));
     
     /*for (size_t i = 0; i < program.count; i++) {
         String_View decl_sv = decl_to_sv(program.data[i], 0);
