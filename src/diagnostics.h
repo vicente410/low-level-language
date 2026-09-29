@@ -11,4 +11,4 @@ typedef struct {
 
 String_View position_to_sv(Position pos);
 
-#endif // DIAGNOSTICS_H
+#endif                          // DIAGNOSTICS_H

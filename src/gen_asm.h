@@ -6,4 +6,4 @@
 
 String_View compile_program(IrProgram program);
 
-#endif // GEN_ASM_H
+#endif                          // GEN_ASM_H

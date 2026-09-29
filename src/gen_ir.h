@@ -11,7 +11,7 @@ typedef enum {
 
 typedef struct {
     IrArgKind kind;
- 
+
     union {
         int int_lit;
         String_View reg;
@@ -27,6 +27,8 @@ typedef enum {
     IR_MUL,
     IR_DIV,
     IR_MOD,
+    IR_JEZ,
+    IR_JMP,
 } IrInstKind;
 
 typedef struct {
@@ -53,4 +55,4 @@ typedef struct {
 String_View ir_fn_to_sv(IrFn ir);
 IrProgram gen_ir_program(AstProgram ast);
 
-#endif // GEN_IR_H
+#endif                          // GEN_IR_H

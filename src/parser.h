@@ -26,31 +26,39 @@ typedef struct Expr {
     } as;
 } Expr;
 
-struct Stmts;
+struct Stmt;
+
+typedef struct {
+    struct Stmt *data;
+    size_t count;
+    size_t capacity;
+} Stmts;
 
 typedef struct {
     String_View id;
     Expr value;
 } Var;
 
+typedef struct {
+    Expr cond;
+    Stmts then_body;
+    Stmts else_body;
+} Ifte;
+
 typedef enum {
     STMT_RET,
     STMT_VAR,
+    STMT_IFTE,
 } StmtKind;
 
-typedef struct {
+typedef struct Stmt {
     StmtKind kind;
     union {
         Expr ret;
         Var var;
+        Ifte ifte;
     } as;
 } Stmt;
-
-typedef struct Stmts {
-    Stmt *data;
-    size_t count;
-    size_t capacity;
-} Stmts;
 
 typedef struct {
     String_View id;
@@ -77,6 +85,6 @@ typedef struct {
 String_View expr_to_sv(Expr expr, size_t indent);
 String_View stmt_to_sv(Stmt stmt, size_t indent);
 String_View decl_to_sv(Decl decl, size_t indent);
-AstProgram parse_program(Lexer *lexer);
+AstProgram parse_program(Lexer * lexer);
 
-#endif // PARSER_H
+#endif                          // PARSER_H

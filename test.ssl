@@ -1,4 +1,11 @@
 fn main() {
     var x = 4
-    return x + 34 * 2
+    var y = 27
+ 
+    if x - 4 {
+        var z = 62
+        return x + z * 2
+    } else {
+        return x % 7
+    }
 }

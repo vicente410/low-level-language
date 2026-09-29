@@ -49,11 +49,11 @@ typedef struct {
     bool has_peeked_token;
 } Lexer;
 
-bool lexer_init(Lexer *lexer, char *filename);
+bool lexer_init(Lexer * lexer, char *filename);
 String_View token_to_sv(Token token);
-Token next_token(Lexer *lexer);
-Token peek_token(Lexer *lexer);
-void expect_token(Lexer *lexer, TokenKind kind);
-bool accept_token(Lexer *lexer, TokenKind kind);
+Token next_token(Lexer * lexer);
+Token peek_token(Lexer * lexer);
+void expect_token(Lexer * lexer, TokenKind kind);
+bool accept_token(Lexer * lexer, TokenKind kind);
 
-#endif // LEXER_H
+#endif                          // LEXER_H
