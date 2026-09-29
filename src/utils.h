@@ -7,6 +7,9 @@
 
 // TODO: Implement parser combinators using String_View
 
+#ifndef UTILS_H
+#define UTILS_H
+
 // Dynamic Array
 
 #define da_reserve(da, additional)\
@@ -77,6 +80,7 @@ int sb_appendf(String_Builder *sb, const char *fmt, ...);
 bool sb_read_file(String_Builder *sb, const char *path);
 
 String_View sv_from_parts(const char *cstr, size_t count);
+String_View sv_from_sb(String_Builder sb);
 String_View sv_from_cstr(const char *cstr);
 
 bool sv_eq(String_View a, String_View b);
@@ -108,7 +112,10 @@ String_View sv_trim(String_View sv);
 String_View sv_trim_start(String_View sv);
 String_View sv_trim_end(String_View sv);
 
+#endif // UTILS_H
+
 #ifdef UTILS_IMPLEMENTATION
+
 int isnotspace(int c) {
     return c != ' ' && c != '\t' && c != '\n';
 }
@@ -346,4 +353,4 @@ String_View sv_trim_start(String_View sv) {
 String_View sv_trim_end(String_View sv) {
     return sv_slice_start(sv, sv_find_nth_pred(sv, isnotspace, -1) + 1);
 }
-#endif
+#endif // UTILS_IMPLEMENTATION

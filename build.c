@@ -44,6 +44,11 @@ int main() {
         "cc",
         "-o", "main",
         "src/main.c",
+        "src/diagnostics.c",
+        "src/lexer.c",
+        "src/parser.c",
+        "src/gen_ir.c",
+        "src/gen_asm.c",
         "-Wall",
         "-Wextra",
         NULL
