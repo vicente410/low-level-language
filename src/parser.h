@@ -57,11 +57,17 @@ typedef struct {
     Stmts else_body;
 } Ifte;
 
+typedef struct {
+    Expr cond;
+    Stmts body;
+} While;
+
 typedef enum {
     STMT_RET,
     STMT_VAR,
     STMT_ASSIGN,
     STMT_IFTE,
+    STMT_WHILE,
 } StmtKind;
 
 typedef struct Stmt {
@@ -71,6 +77,7 @@ typedef struct Stmt {
         Var var;
         Assign assign;
         Ifte ifte;
+        While while_stmt;
     } as;
 } Stmt;
 

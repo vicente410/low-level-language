@@ -214,42 +214,72 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
         inst.op1.as.reg = stmt.as.assign.id;
         inst.op2 = gen_ir_expr(stmt.as.assign.value, ir_fn);
         break;
-    case STMT_IFTE:
-        String_Builder sb1 = { };
-        sb_appendf(&sb1, "end_then_%d", label_count);
-        String_View end_then_label = sv_from_sb(sb1);
-        String_Builder sb2 = { };
-        sb_appendf(&sb2, "end_else_%d", label_count);
-        String_View end_else_label = sv_from_sb(sb2);
+    case STMT_IFTE:{
+            String_Builder sb1 = { };
+            sb_appendf(&sb1, "end_then_%d", label_count);
+            String_View end_then_label = sv_from_sb(sb1);
+            String_Builder sb2 = { };
+            sb_appendf(&sb2, "end_else_%d", label_count);
+            String_View end_else_label = sv_from_sb(sb2);
+            label_count += 1;
 
-        inst.kind = IR_JEZ;
-        inst.op1 = gen_ir_expr(stmt.as.ifte.cond, ir_fn);
-        inst.label = end_then_label;
-        da_push(ir_fn, inst);
-
-        for (size_t i = 0; i < stmt.as.ifte.then_body.count; i++) {
-            gen_ir_stmt(stmt.as.ifte.then_body.data[i], ir_fn);
-        }
-
-        if (stmt.as.ifte.else_body.count > 0) {
-            inst.kind = IR_JMP;
-            inst.label = end_else_label;
+            inst.kind = IR_JEZ;
+            inst.op1 = gen_ir_expr(stmt.as.ifte.cond, ir_fn);
+            inst.label = end_then_label;
             da_push(ir_fn, inst);
-        }
 
-        inst.kind = IR_LABEL;
-        inst.label = end_then_label;
-        da_push(ir_fn, inst);
-
-        if (stmt.as.ifte.else_body.count > 0) {
-            for (size_t i = 0; i < stmt.as.ifte.else_body.count; i++) {
-                gen_ir_stmt(stmt.as.ifte.else_body.data[i], ir_fn);
+            for (size_t i = 0; i < stmt.as.ifte.then_body.count; i++) {
+                gen_ir_stmt(stmt.as.ifte.then_body.data[i], ir_fn);
             }
 
-            inst.label = end_else_label;
-        }
+            if (stmt.as.ifte.else_body.count > 0) {
+                inst.kind = IR_JMP;
+                inst.label = end_else_label;
+                da_push(ir_fn, inst);
+            }
 
-        break;
+            inst.kind = IR_LABEL;
+            inst.label = end_then_label;
+            da_push(ir_fn, inst);
+
+            if (stmt.as.ifte.else_body.count > 0) {
+                for (size_t i = 0; i < stmt.as.ifte.else_body.count; i++) {
+                    gen_ir_stmt(stmt.as.ifte.else_body.data[i], ir_fn);
+                }
+
+                inst.label = end_else_label;
+            }
+
+        } break;
+    case STMT_WHILE:{
+            String_Builder sb1 = { };
+            sb_appendf(&sb1, "while_start_%d", label_count);
+            String_View while_start_label = sv_from_sb(sb1);
+            String_Builder sb2 = { };
+            sb_appendf(&sb2, "while_end_%d", label_count);
+            String_View while_end_label = sv_from_sb(sb2);
+            label_count += 1;
+
+            inst.kind = IR_LABEL;
+            inst.label = while_start_label;
+            da_push(ir_fn, inst);
+
+            inst.kind = IR_JEZ;
+            inst.op1 = gen_ir_expr(stmt.as.while_stmt.cond, ir_fn);
+            inst.label = while_end_label;
+            da_push(ir_fn, inst);
+
+            for (size_t i = 0; i < stmt.as.while_stmt.body.count; i++) {
+                gen_ir_stmt(stmt.as.while_stmt.body.data[i], ir_fn);
+            }
+
+            inst.kind = IR_JMP;
+            inst.label = while_start_label;
+            da_push(ir_fn, inst);
+
+            inst.kind = IR_LABEL;
+            inst.label = while_end_label;
+        } break;
     }
 
     da_push(ir_fn, inst);

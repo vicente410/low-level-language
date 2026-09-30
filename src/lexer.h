@@ -20,6 +20,7 @@ typedef enum {
     TOKEN_VAR,
     TOKEN_IF,
     TOKEN_ELSE,
+    TOKEN_WHILE,
     TOKEN_FN,
     TOKEN_STRUCT,
     TOKEN_UNION,

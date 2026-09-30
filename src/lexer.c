@@ -51,6 +51,9 @@ String_View token_to_sv(Token token) {
     case TOKEN_ELSE:
         sb_appendf(&sb, "TOKEN_ELSE");
         break;
+    case TOKEN_WHILE:
+        sb_appendf(&sb, "TOKEN_WHILE");
+        break;
     case TOKEN_FN:
         sb_appendf(&sb, "TOKEN_FN");
         break;
@@ -136,6 +139,8 @@ Token read_id_or_keyword(Lexer *lexer) {
         token.kind = TOKEN_IF;
     } else if (sv_eq_cstr(sv_from_sb(sb), "else")) {
         token.kind = TOKEN_ELSE;
+    } else if (sv_eq_cstr(sv_from_sb(sb), "while")) {
+        token.kind = TOKEN_WHILE;
     } else if (sv_eq_cstr(sv_from_sb(sb), "fn")) {
         token.kind = TOKEN_FN;
     } else if (sv_eq_cstr(sv_from_sb(sb), "struct")) {
