@@ -58,6 +58,38 @@ String_View ir_fn_to_sv(IrFn ir) {
             sb_appendf(&sb, "    mod " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
             break;
+        case IR_LT:
+            sb_appendf(&sb, "    lt  " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_LTE:
+            sb_appendf(&sb, "    lte " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_GT:
+            sb_appendf(&sb, "    gt  " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_GTE:
+            sb_appendf(&sb, "    gte " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_EQ:
+            sb_appendf(&sb, "    eq  " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_NEQ:
+            sb_appendf(&sb, "    neq " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_AND:
+            sb_appendf(&sb, "    and " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
+        case IR_OR:
+            sb_appendf(&sb, "    or  " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
+            break;
         case IR_JMP:
             sb_appendf(&sb, "    jmp " SV_FMT "\n", SV_ARG(inst.label));
             break;
@@ -108,6 +140,22 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
                 inst.kind = IR_DIV;
             } else if (sv_eq_cstr(expr.as.op.op, "%")) {
                 inst.kind = IR_MOD;
+            } else if (sv_eq_cstr(expr.as.op.op, "<")) {
+                inst.kind = IR_LT;
+            } else if (sv_eq_cstr(expr.as.op.op, "<=")) {
+                inst.kind = IR_LTE;
+            } else if (sv_eq_cstr(expr.as.op.op, ">")) {
+                inst.kind = IR_GT;
+            } else if (sv_eq_cstr(expr.as.op.op, ">=")) {
+                inst.kind = IR_GTE;
+            } else if (sv_eq_cstr(expr.as.op.op, "==")) {
+                inst.kind = IR_EQ;
+            } else if (sv_eq_cstr(expr.as.op.op, "!=")) {
+                inst.kind = IR_NEQ;
+            } else if (sv_eq_cstr(expr.as.op.op, "&&")) {
+                inst.kind = IR_AND;
+            } else if (sv_eq_cstr(expr.as.op.op, "||")) {
+                inst.kind = IR_OR;
             } else {
                 assert(false);
             }

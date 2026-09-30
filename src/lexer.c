@@ -227,7 +227,7 @@ Token read_symbol(Lexer *lexer) {
         token.kind = TOKEN_OP;
         String_Builder sb = { };
         da_push(&sb, ch);
-        while (strchr("+-*/!=<>", peek_char(lexer)) != NULL) {
+        while (strchr("+-*/!=<>&|", peek_char(lexer)) != NULL) {
             da_push(&sb, next_char(lexer));
         }
         token.as.op = sv_from_sb(sb);
@@ -270,8 +270,11 @@ Token peek_token(Lexer *lexer) {
 }
 
 void expect_token(Lexer *lexer, TokenKind kind) {
-    if (next_token(lexer).kind != kind) {
-        fprintf(stderr, "Error: Unexepected token");
+    Token token = next_token(lexer);
+    if (token.kind != kind) {
+        String_View token_sv = token_to_sv(token);
+        fprintf(stderr, "Error: Unexpected token " SV_FMT "\n",
+                SV_ARG(token_sv));
         exit(1);
     }
 }

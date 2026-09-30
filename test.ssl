@@ -1,11 +1,11 @@
 fn main() {
-    var x = 4
+    var x = 27
     var y = 27
  
-    if x - 4 {
+    if x > 20 && x < 30 {
         var z = 62
-        return x + z * 2
+        return x + z / 2
     } else {
-        return x % 7
+        return x%7
     }
 }

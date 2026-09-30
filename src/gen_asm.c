@@ -40,6 +40,22 @@ size_t get_num_ops(IrInst inst) {
         return 3;
     case IR_MOD:
         return 3;
+    case IR_LT:
+        return 3;
+    case IR_LTE:
+        return 3;
+    case IR_GT:
+        return 3;
+    case IR_GTE:
+        return 3;
+    case IR_EQ:
+        return 3;
+    case IR_NEQ:
+        return 3;
+    case IR_AND:
+        return 3;
+    case IR_OR:
+        return 3;
     case IR_JMP:
         return 0;
     case IR_JEZ:
@@ -146,9 +162,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             break;
         case IR_DIV:
             sb_appendf(sb, "    mov rbx, ");
-            append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rax, ");
             append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
             sb_appendf(sb, "\n    xor rdx, rdx");
             sb_appendf(sb, "\n    idiv rbx");
             sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
@@ -156,12 +172,94 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             break;
         case IR_MOD:
             sb_appendf(sb, "    mov rbx, ");
-            append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rax, ");
             append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
             sb_appendf(sb, "\n    xor rdx, rdx");
             sb_appendf(sb, "\n    idiv rbx");
             sb_appendf(sb, "\n    mov [rbp - %zu], rdx\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_LT:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    setl al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_LTE:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    setle al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_GT:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    setg al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_GTE:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    setge al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_EQ:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    sete al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_NEQ:
+            sb_appendf(sb, "    mov rbx, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov rdx, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    setne al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_AND:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    and rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_OR:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    or rax, ");
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_JMP:
