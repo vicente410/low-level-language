@@ -47,6 +47,11 @@ typedef struct {
 } Var;
 
 typedef struct {
+    String_View id;
+    Expr value;
+} Assign;
+
+typedef struct {
     Expr cond;
     Stmts then_body;
     Stmts else_body;
@@ -55,6 +60,7 @@ typedef struct {
 typedef enum {
     STMT_RET,
     STMT_VAR,
+    STMT_ASSIGN,
     STMT_IFTE,
 } StmtKind;
 
@@ -63,6 +69,7 @@ typedef struct Stmt {
     union {
         Expr ret;
         Var var;
+        Assign assign;
         Ifte ifte;
     } as;
 } Stmt;

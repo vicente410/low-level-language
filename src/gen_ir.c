@@ -208,6 +208,12 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
         inst.op1.as.reg = stmt.as.var.id;
         inst.op2 = gen_ir_expr(stmt.as.var.value, ir_fn);
         break;
+    case STMT_ASSIGN:
+        inst.kind = IR_MOV;
+        inst.op1.kind = IR_REG;
+        inst.op1.as.reg = stmt.as.assign.id;
+        inst.op2 = gen_ir_expr(stmt.as.assign.value, ir_fn);
+        break;
     case STMT_IFTE:
         String_Builder sb1 = { };
         sb_appendf(&sb1, "end_then_%d", label_count);

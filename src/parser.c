@@ -56,6 +56,14 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
             sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
         }
         break;
+    case STMT_ASSIGN:{
+            sb_appendf(&sb, "ASSIGN " SV_FMT "\n",
+                       SV_ARG(stmt.as.assign.id));
+            String_View expr_sv =
+                expr_to_sv(stmt.as.assign.value, indent + 1);
+            sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
+        }
+        break;
     case STMT_IFTE:{
             sb_appendf(&sb, "IF\n");
             String_View expr_sv =
@@ -268,6 +276,14 @@ Stmt parse_stmt(Lexer *lexer) {
             }
         }
 
+        break;
+    case TOKEN_ID:
+        stmt.kind = STMT_ASSIGN;
+        stmt.as.assign.id = token.as.id;
+
+        expect_token(lexer, TOKEN_EQUAL);
+
+        stmt.as.assign.value = *parse_expr(lexer, 0);
         break;
     default:
         String_View pos_sv = position_to_sv(token.pos);
