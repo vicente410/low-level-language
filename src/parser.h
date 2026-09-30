@@ -8,21 +8,28 @@
 typedef enum {
     EXPR_INT_LIT,
     EXPR_ID,
-    EXPR_OP,
+    EXPR_UNOP,
+    EXPR_BINOP,
 } ExprKind;
+
+typedef struct {
+    String_View op;
+    struct Expr *expr;
+} UnOp;
 
 typedef struct {
     String_View op;
     struct Expr *lhs;
     struct Expr *rhs;
-} Op;
+} BinOp;
 
 typedef struct Expr {
     ExprKind kind;
     union {
         int int_lit;
         String_View id;
-        Op op;
+        UnOp unop;
+        BinOp binop;
     } as;
 } Expr;
 

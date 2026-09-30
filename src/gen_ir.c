@@ -90,6 +90,10 @@ String_View ir_fn_to_sv(IrFn ir) {
             sb_appendf(&sb, "    or  " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
             break;
+        case IR_NOT:
+            sb_appendf(&sb, "    not " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2));
+            break;
         case IR_JMP:
             sb_appendf(&sb, "    jmp " SV_FMT "\n", SV_ARG(inst.label));
             break;
@@ -119,7 +123,7 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             ir_arg.as.reg = expr.as.id;
             return ir_arg;
         }
-    case EXPR_OP:{
+    case EXPR_UNOP:{
             IrInst inst = { };
 
             String_Builder sb = { };
@@ -127,35 +131,56 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             inst.op1.kind = IR_REG;
             inst.op1.as.reg = sv_from_sb(sb);
 
-            inst.op2 = gen_ir_expr(*expr.as.op.lhs, ir_fn);
-            inst.op3 = gen_ir_expr(*expr.as.op.rhs, ir_fn);
+            inst.op2 = gen_ir_expr(*expr.as.unop.expr, ir_fn);
 
-            if (sv_eq_cstr(expr.as.op.op, "+")) {
+            if (sv_eq_cstr(expr.as.binop.op, "!")) {
+                inst.kind = IR_NOT;
+            } else {
+                assert(false);
+            }
+
+            da_push(ir_fn, inst);
+            return inst.op1;
+        }
+    case EXPR_BINOP:{
+            IrInst inst = { };
+
+            String_Builder sb = { };
+            sb_appendf(&sb, "t%d", reg_num++);
+            inst.op1.kind = IR_REG;
+            inst.op1.as.reg = sv_from_sb(sb);
+
+            inst.op2 = gen_ir_expr(*expr.as.binop.lhs, ir_fn);
+            inst.op3 = gen_ir_expr(*expr.as.binop.rhs, ir_fn);
+
+            if (sv_eq_cstr(expr.as.binop.op, "+")) {
                 inst.kind = IR_ADD;
-            } else if (sv_eq_cstr(expr.as.op.op, "-")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "-")) {
                 inst.kind = IR_SUB;
-            } else if (sv_eq_cstr(expr.as.op.op, "*")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "*")) {
                 inst.kind = IR_MUL;
-            } else if (sv_eq_cstr(expr.as.op.op, "/")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "/")) {
                 inst.kind = IR_DIV;
-            } else if (sv_eq_cstr(expr.as.op.op, "%")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "%")) {
                 inst.kind = IR_MOD;
-            } else if (sv_eq_cstr(expr.as.op.op, "<")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "<")) {
                 inst.kind = IR_LT;
-            } else if (sv_eq_cstr(expr.as.op.op, "<=")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "<=")) {
                 inst.kind = IR_LTE;
-            } else if (sv_eq_cstr(expr.as.op.op, ">")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, ">")) {
                 inst.kind = IR_GT;
-            } else if (sv_eq_cstr(expr.as.op.op, ">=")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, ">=")) {
                 inst.kind = IR_GTE;
-            } else if (sv_eq_cstr(expr.as.op.op, "==")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "==")) {
                 inst.kind = IR_EQ;
-            } else if (sv_eq_cstr(expr.as.op.op, "!=")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "!=")) {
                 inst.kind = IR_NEQ;
-            } else if (sv_eq_cstr(expr.as.op.op, "&&")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "&&")) {
                 inst.kind = IR_AND;
-            } else if (sv_eq_cstr(expr.as.op.op, "||")) {
+            } else if (sv_eq_cstr(expr.as.binop.op, "||")) {
                 inst.kind = IR_OR;
+            } else if (sv_eq_cstr(expr.as.binop.op, "!")) {
+                inst.kind = IR_NOT;
             } else {
                 assert(false);
             }

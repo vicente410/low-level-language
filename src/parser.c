@@ -13,10 +13,20 @@ String_View expr_to_sv(Expr expr, size_t indent) {
     case EXPR_ID:
         sb_appendf(&sb, "ID(" SV_FMT ")", SV_ARG(expr.as.id));
         break;
-    case EXPR_OP:{
-            String_View lhs_sv = expr_to_sv(*expr.as.op.lhs, indent + 1);
-            String_View rhs_sv = expr_to_sv(*expr.as.op.rhs, indent + 1);
-            sb_appendf(&sb, "OP(" SV_FMT ")\n", SV_ARG(expr.as.op.op));
+    case EXPR_UNOP:{
+            String_View expr_sv =
+                expr_to_sv(*expr.as.unop.expr, indent + 1);
+            sb_appendf(&sb, "UNOP(" SV_FMT ")\n", SV_ARG(expr.as.unop.op));
+            sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
+        }
+        break;
+    case EXPR_BINOP:{
+            String_View lhs_sv =
+                expr_to_sv(*expr.as.binop.lhs, indent + 1);
+            String_View rhs_sv =
+                expr_to_sv(*expr.as.binop.rhs, indent + 1);
+            sb_appendf(&sb, "BINOP(" SV_FMT ")\n",
+                       SV_ARG(expr.as.binop.op));
             sb_appendf(&sb, SV_FMT "\n", SV_ARG(lhs_sv));
             sb_appendf(&sb, SV_FMT, SV_ARG(rhs_sv));
         }
@@ -126,6 +136,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expr = parse_expr(lexer, 0);
             expect_token(lexer, TOKEN_CLOSE_PAREN);
             break;
+        case TOKEN_OP:
+            expr->kind = EXPR_UNOP;
+            expr->as.unop.op = token.as.op;
+            expr->as.unop.expr = parse_expr(lexer, 0);
+            break;
         default:
             String_View pos_sv = position_to_sv(token.pos);
             fprintf(stderr, SV_FMT " ERROR: invalid expression\n",
@@ -139,70 +154,78 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
     while (peek_token(lexer).kind == TOKEN_OP && ((precedence == 4
                                                    &&
                                                    (sv_eq_cstr
-                                                    (peek_token(lexer).as.
-                                                     op, ".")))
+                                                    (peek_token(lexer).
+                                                     as.op, ".")))
                                                   || (precedence == 3
                                                       &&
                                                       (sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "*")
+                                                       (peek_token
+                                                        (lexer).as.op, "*")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "/")
+                                                       (peek_token
+                                                        (lexer).as.op, "/")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "%")))
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "%")))
                                                   || (precedence == 2
                                                       &&
                                                       (sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "+")
+                                                       (peek_token
+                                                        (lexer).as.op, "+")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "-")))
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "-")))
                                                   || (precedence == 1
                                                       &&
                                                       (sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "<")
+                                                       (peek_token
+                                                        (lexer).as.op, "<")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, ">")
+                                                       (peek_token
+                                                        (lexer).as.op, ">")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "<=")
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "<=")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, ">=")
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        ">=")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "==")
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "==")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "!=")))
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "!=")))
                                                   || (precedence == 0
                                                       &&
                                                       (sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "&&")
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "&&")
                                                        ||
                                                        sv_eq_cstr
-                                                       (peek_token(lexer).
-                                                        as.op, "||")))
+                                                       (peek_token
+                                                        (lexer).as.op,
+                                                        "||")))
            )) {
         Expr *new_expr = calloc(1, sizeof(Expr));
-        new_expr->kind = EXPR_OP;
-        new_expr->as.op.lhs = expr;
-        new_expr->as.op.op = next_token(lexer).as.op;
-        new_expr->as.op.rhs = parse_expr(lexer, precedence + 1);
+        new_expr->kind = EXPR_BINOP;
+        new_expr->as.binop.lhs = expr;
+        new_expr->as.binop.op = next_token(lexer).as.op;
+        new_expr->as.binop.rhs = parse_expr(lexer, precedence + 1);
         expr = new_expr;
     }
 

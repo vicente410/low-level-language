@@ -1,8 +1,8 @@
 fn main() {
-    var x = 27
+    var x = 0
     var y = 27
  
-    if x > 20 && x < 30 {
+    if !x {
         var z = 62
         return x + z / 2
     } else {

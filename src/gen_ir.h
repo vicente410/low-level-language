@@ -35,6 +35,7 @@ typedef enum {
     IR_NEQ,
     IR_AND,
     IR_OR,
+    IR_NOT,
     IR_JEZ,
     IR_JMP,
 } IrInstKind;

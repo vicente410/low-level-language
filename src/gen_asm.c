@@ -56,6 +56,8 @@ size_t get_num_ops(IrInst inst) {
         return 3;
     case IR_OR:
         return 3;
+    case IR_NOT:
+        return 2;
     case IR_JMP:
         return 0;
     case IR_JEZ:
@@ -259,6 +261,13 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             append_arg(sb, &offsets, inst.op2);
             sb_appendf(sb, "\n    or rax, ");
             append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_NOT:
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    not rax");
             sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
