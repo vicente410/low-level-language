@@ -6,8 +6,18 @@
 #define PARSER_H
 
 typedef enum {
-    EXPR_INT_LIT,
+    TYPE_NONE,
+    TYPE_BOOL,
+    TYPE_INT,
+} TypeKind;
+
+typedef struct {
+    TypeKind kind;
+} Type;
+
+typedef enum {
     EXPR_BOOL_LIT,
+    EXPR_INT_LIT,
     EXPR_ID,
     EXPR_UNOP,
     EXPR_BINOP,
@@ -25,10 +35,11 @@ typedef struct {
 } BinOp;
 
 typedef struct Expr {
+    Type type;
     ExprKind kind;
     union {
-        int int_lit;
         bool bool_lit;
+        int int_lit;
         String_View id;
         UnOp unop;
         BinOp binop;

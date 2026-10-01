@@ -57,6 +57,7 @@ int compile_compiler() {
         "src/diagnostics.c",
         "src/lexer.c",
         "src/parser.c",
+        "src/semantic.c",
         "src/gen_ir.c",
         "src/gen_asm.c",
         "-Wall",

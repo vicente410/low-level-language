@@ -304,7 +304,7 @@ IrFn gen_ir_fn(AstFn fn) {
 }
 
 IrProgram gen_ir_program(AstProgram ast) {
-    IrProgram ir;
+    IrProgram ir = { };
 
     for (size_t i = 0; i < ast.count; i++) {
         assert(ast.data[i].kind == DECL_FN);

@@ -121,7 +121,7 @@ void compile_fn(String_Builder *sb, IrFn fn) {
 
     for (size_t i = 0; i < fn.count; i++) {
         IrInst inst = fn.data[i];
-        assert(inst.op1.kind == IR_REG);
+        assert(inst.op1.kind == IR_REG);        // TODO: return might be a number
 
         switch (inst.kind) {
         case IR_LABEL:

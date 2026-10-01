@@ -3,6 +3,7 @@
 #include "diagnostics.h"
 #include "lexer.h"
 #include "parser.h"
+#include "semantic.h"
 #include "gen_ir.h"
 #include "gen_asm.h"
 #define UTILS_IMPLEMENTATION
@@ -20,6 +21,7 @@ int main(int argc, char **argv) {
     lexer_init(&lexer, program_name);
 
     AstProgram ast = parse_program(&lexer);
+    type_program(&ast);
     if (argc == 3 && strcmp(argv[2], "--ast") == 0) {
         for (size_t i = 0; i < ast.count; i++) {
             String_View ast_sv = decl_to_sv(ast.data[i], 0);
@@ -38,6 +40,7 @@ int main(int argc, char **argv) {
 
         return 0;
     }
+
     String_View assembly = compile_program(ir);
     printf(SV_FMT "\n", SV_ARG(assembly));
 
