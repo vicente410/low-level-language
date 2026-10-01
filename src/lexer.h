@@ -24,6 +24,8 @@ typedef enum {
     TOKEN_FN,
     TOKEN_STRUCT,
     TOKEN_UNION,
+    TOKEN_TRUE,
+    TOKEN_FALSE,
     TOKEN_INT_LIT,
     TOKEN_STRING_LIT,
     TOKEN_SEMICOLON,

@@ -7,6 +7,7 @@
 
 typedef enum {
     EXPR_INT_LIT,
+    EXPR_BOOL_LIT,
     EXPR_ID,
     EXPR_UNOP,
     EXPR_BINOP,
@@ -27,6 +28,7 @@ typedef struct Expr {
     ExprKind kind;
     union {
         int int_lit;
+        bool bool_lit;
         String_View id;
         UnOp unop;
         BinOp binop;

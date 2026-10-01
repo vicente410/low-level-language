@@ -63,6 +63,12 @@ String_View token_to_sv(Token token) {
     case TOKEN_UNION:
         sb_appendf(&sb, "TOKEN_UNION");
         break;
+    case TOKEN_TRUE:
+        sb_appendf(&sb, "TOKEN_TRUE");
+        break;
+    case TOKEN_FALSE:
+        sb_appendf(&sb, "TOKEN_FALSE");
+        break;
     case TOKEN_INT_LIT:
         sb_appendf(&sb, "TOKEN_INT_LIT(%d)", token.as.int_lit);
         break;
@@ -135,6 +141,10 @@ Token read_id_or_keyword(Lexer *lexer) {
         token.kind = TOKEN_RET;
     } else if (sv_eq_cstr(sv_from_sb(sb), "var")) {
         token.kind = TOKEN_VAR;
+    } else if (sv_eq_cstr(sv_from_sb(sb), "true")) {
+        token.kind = TOKEN_TRUE;
+    } else if (sv_eq_cstr(sv_from_sb(sb), "false")) {
+        token.kind = TOKEN_FALSE;
     } else if (sv_eq_cstr(sv_from_sb(sb), "if")) {
         token.kind = TOKEN_IF;
     } else if (sv_eq_cstr(sv_from_sb(sb), "else")) {

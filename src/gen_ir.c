@@ -111,6 +111,12 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
     static size_t reg_num = 0;
 
     switch (expr.kind) {
+    case EXPR_BOOL_LIT:{
+            IrArg ir_arg = { };
+            ir_arg.kind = IR_INT;
+            ir_arg.as.int_lit = expr.as.bool_lit;
+            return ir_arg;
+        }
     case EXPR_INT_LIT:{
             IrArg ir_arg = { };
             ir_arg.kind = IR_INT;
@@ -240,9 +246,10 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
 
             inst.kind = IR_LABEL;
             inst.label = end_then_label;
-            da_push(ir_fn, inst);
 
             if (stmt.as.ifte.else_body.count > 0) {
+                da_push(ir_fn, inst);
+
                 for (size_t i = 0; i < stmt.as.ifte.else_body.count; i++) {
                     gen_ir_stmt(stmt.as.ifte.else_body.data[i], ir_fn);
                 }
