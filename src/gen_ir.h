@@ -10,6 +10,7 @@ typedef enum {
 } IrArgKind;
 
 typedef struct {
+    size_t size;
     IrArgKind kind;
 
     union {

@@ -25,45 +25,78 @@ int get_reg_offset(RegOffsets *offsets, String_View reg) {
 size_t get_num_ops(IrInst inst) {
     switch (inst.kind) {
     case IR_LABEL:
-        return 0;
-    case IR_MOV:
-        return 2;
-    case IR_RET:
-        return 1;
-    case IR_ADD:
-        return 3;
-    case IR_SUB:
-        return 3;
-    case IR_MUL:
-        return 3;
-    case IR_DIV:
-        return 3;
-    case IR_MOD:
-        return 3;
-    case IR_LT:
-        return 3;
-    case IR_LTE:
-        return 3;
-    case IR_GT:
-        return 3;
-    case IR_GTE:
-        return 3;
-    case IR_EQ:
-        return 3;
-    case IR_NEQ:
-        return 3;
-    case IR_AND:
-        return 3;
-    case IR_OR:
-        return 3;
-    case IR_NOT:
-        return 2;
     case IR_JMP:
         return 0;
     case IR_JEZ:
+    case IR_RET:
         return 1;
+    case IR_NOT:
+    case IR_MOV:
+        return 2;
+    case IR_ADD:
+    case IR_SUB:
+    case IR_MUL:
+    case IR_DIV:
+    case IR_MOD:
+    case IR_LT:
+    case IR_LTE:
+    case IR_GT:
+    case IR_GTE:
+    case IR_EQ:
+    case IR_NEQ:
+    case IR_AND:
+    case IR_OR:
+        return 3;
     default:
         assert(false);
+    }
+}
+
+const char *get_rax_name(size_t size) {
+    switch (size) {
+    case 1:
+        return "al";
+    case 2:
+        return "ax";
+    case 4:
+        return "eax";
+    case 8:
+        return "rax";
+    default:
+        fprintf(stderr, "ERROR: Invalid size %zu for register\n", size);
+        exit(1);
+    }
+}
+
+const char *get_rbx_name(size_t size) {
+    switch (size) {
+    case 1:
+        return "bl";
+    case 2:
+        return "bx";
+    case 4:
+        return "ebx";
+    case 8:
+        return "rbx";
+    default:
+        fprintf(stderr, "ERROR: Invalid size %zu for register\n", size);
+        exit(1);
+    }
+}
+
+const char *get_rdx_name(size_t size) {
+    switch (size) {
+    case 1:
+        return "dl";
+    case 2:
+        return "dx";
+    case 4:
+        return "edx";
+    case 8:
+        return "rdx";
+    default:
+        fprintf(stderr, "ERROR: Invalid size %zu for register\n", size);
+        exit(1);
     }
 }
 
@@ -92,7 +125,7 @@ size_t allocate_registers(RegOffsets *offsets, IrFn fn) {
                                   .reg = arg.as.reg,.offset = offset,}
                         ));
 
-                offset += 8;
+                offset += arg.size;
             }
         }
     }
@@ -128,156 +161,204 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             sb_appendf(sb, SV_FMT ":\n", SV_ARG(inst.label));
             break;
         case IR_MOV:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == inst.op2.size);
+            sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op2.size));
             break;
         case IR_RET:
-            sb_appendf(sb, "    mov rax, [rbp - %zu]\n",
+            sb_appendf(sb, "    mov %s, [rbp - %zu]\n",
+                       get_rax_name(inst.op1.size),
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_ADD:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == inst.op2.size
+                   && inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    add rax, ");
+            sb_appendf(sb, "\n    add %s, ", get_rax_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op3.size));
             break;
         case IR_SUB:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == inst.op2.size
+                   && inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    sub rax, ");
+            sb_appendf(sb, "\n    sub %s, ", get_rax_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op3.size));
             break;
         case IR_MUL:
-            sb_appendf(sb, "    mov rdx, ");
+            assert(inst.op1.size == inst.op2.size
+                   && inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rdx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rax, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    imul rax, rdx");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
+            sb_appendf(sb, "\n    imul %s, %s",
+                       get_rax_name(inst.op3.size),
+                       get_rdx_name(inst.op2.size));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op3.size));
             break;
         case IR_DIV:
-            sb_appendf(sb, "    mov rbx, ");
-            append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov rax, ");
-            append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    xor rdx, rdx");
-            sb_appendf(sb, "\n    idiv rbx");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
-            break;
-        case IR_MOD:
-            sb_appendf(sb, "    mov rbx, ");
-            append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov rax, ");
-            append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    xor rdx, rdx");
-            sb_appendf(sb, "\n    idiv rbx");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rdx\n",
-                       get_reg_offset(&offsets, inst.op1.as.reg));
-            break;
-        case IR_LT:
-            sb_appendf(sb, "    mov rbx, ");
-            append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            assert(inst.op1.size == inst.op2.size
+                   && inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
             sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op2.size));
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    xor rdx, rdx");
+            sb_appendf(sb, "\n    idiv %s", get_rbx_name(inst.op3.size));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op3.size));
+            break;
+        case IR_MOD:
+            assert(inst.op1.size == inst.op2.size
+                   && inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op3.size));
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    xor rax, rax");
+            sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op2.size));
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    xor rdx, rdx");
+            sb_appendf(sb, "\n    idiv %s", get_rbx_name(inst.op3.size));
+            if (inst.op1.size == 1) {
+                sb_appendf(sb, "\n    mov [rbp - %zu], ah\n",
+                           get_reg_offset(&offsets, inst.op1.as.reg));
+            } else {
+                sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                           get_reg_offset(&offsets, inst.op1.as.reg),
+                           get_rdx_name(inst.op1.size));
+            }
+            break;
+        case IR_LT:
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
+            append_arg(sb, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
+            append_arg(sb, &offsets, inst.op3);
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setl al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_LTE:
-            sb_appendf(sb, "    mov rbx, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setle al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_GT:
-            sb_appendf(sb, "    mov rbx, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setg al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_GTE:
-            sb_appendf(sb, "    mov rbx, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setge al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_EQ:
-            sb_appendf(sb, "    mov rbx, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    sete al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_NEQ:
-            sb_appendf(sb, "    mov rbx, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == inst.op3.size);
+            sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    mov rdx, ");
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    xor rax, rax");
-            sb_appendf(sb, "\n    cmp rbx, rdx");
+            sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
+                       get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setne al");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_AND:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == 1);
+            assert(inst.op3.size == 1);
+            sb_appendf(sb, "    mov al, ");
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    and rax, ");
+            sb_appendf(sb, "\n    and al, ");
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_OR:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == 1);
+            assert(inst.op3.size == 1);
+            sb_appendf(sb, "    mov al, ");
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    or rax, ");
+            sb_appendf(sb, "\n    or al, ");
             append_arg(sb, &offsets, inst.op3);
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_NOT:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == 1);
+            assert(inst.op2.size == 1);
+            sb_appendf(sb, "    mov al, ");
             append_arg(sb, &offsets, inst.op2);
-            sb_appendf(sb, "\n    not rax");
-            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+            sb_appendf(sb, "\n    not al");
+            sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_JMP:
             sb_appendf(sb, "    jmp " SV_FMT "\n", SV_ARG(inst.label));
             break;
         case IR_JEZ:
-            sb_appendf(sb, "    mov rax, ");
+            assert(inst.op1.size == 1);
+            sb_appendf(sb, "    mov al, ");
             append_arg(sb, &offsets, inst.op1);
-            sb_appendf(sb, "\n    test rax, rax");
+            sb_appendf(sb, "\n    test al, al");
             sb_appendf(sb, "\n    jz " SV_FMT "\n", SV_ARG(inst.label));
             break;
         }

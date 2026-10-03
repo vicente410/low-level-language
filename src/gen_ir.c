@@ -7,9 +7,11 @@ String_View ir_arg_to_sv(IrArg arg) {
     switch (arg.kind) {
     case IR_INT:
         sb_appendf(&sb, "%d", arg.as.int_lit);
+        //sb_appendf(&sb, "%d:%zu", arg.as.int_lit, arg.size);
         break;
     case IR_REG:
         sb_appendf(&sb, SV_FMT, SV_ARG(arg.as.reg));
+        //sb_appendf(&sb, SV_FMT ":%zu", SV_ARG(arg.as.reg), arg.size);
         break;
     }
 
@@ -107,24 +109,40 @@ String_View ir_fn_to_sv(IrFn ir) {
     return sv_from_sb(sb);
 }
 
+size_t get_type_size(Type type) {
+    switch (type.kind) {
+    case TYPE_NONE:
+        assert(false);
+    case TYPE_BOOL:
+        return 1;
+    case TYPE_INT:
+        return 8;
+    default:
+        assert(false);
+    }
+}
+
 IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
     static size_t reg_num = 0;
 
     switch (expr.kind) {
     case EXPR_BOOL_LIT:{
             IrArg ir_arg = { };
+            ir_arg.size = get_type_size(expr.type);
             ir_arg.kind = IR_INT;
             ir_arg.as.int_lit = expr.as.bool_lit;
             return ir_arg;
         }
     case EXPR_INT_LIT:{
             IrArg ir_arg = { };
+            ir_arg.size = get_type_size(expr.type);
             ir_arg.kind = IR_INT;
             ir_arg.as.int_lit = expr.as.int_lit;
             return ir_arg;
         }
     case EXPR_ID:{
             IrArg ir_arg = { };
+            ir_arg.size = get_type_size(expr.type);
             ir_arg.kind = IR_REG;
             ir_arg.as.reg = expr.as.id;
             return ir_arg;
@@ -136,6 +154,7 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             sb_appendf(&sb, "t%d", reg_num++);
             inst.op1.kind = IR_REG;
             inst.op1.as.reg = sv_from_sb(sb);
+            inst.op1.size = get_type_size(expr.type);
 
             inst.op2 = gen_ir_expr(*expr.as.unop.expr, ir_fn);
 
@@ -155,6 +174,7 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             sb_appendf(&sb, "t%d", reg_num++);
             inst.op1.kind = IR_REG;
             inst.op1.as.reg = sv_from_sb(sb);
+            inst.op1.size = get_type_size(expr.type);
 
             inst.op2 = gen_ir_expr(*expr.as.binop.lhs, ir_fn);
             inst.op3 = gen_ir_expr(*expr.as.binop.rhs, ir_fn);
@@ -212,12 +232,14 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
         inst.kind = IR_MOV;
         inst.op1.kind = IR_REG;
         inst.op1.as.reg = stmt.as.var.id;
+        inst.op1.size = get_type_size(stmt.as.var.value.type);
         inst.op2 = gen_ir_expr(stmt.as.var.value, ir_fn);
         break;
     case STMT_ASSIGN:
         inst.kind = IR_MOV;
         inst.op1.kind = IR_REG;
         inst.op1.as.reg = stmt.as.assign.id;
+        inst.op1.size = get_type_size(stmt.as.assign.value.type);
         inst.op2 = gen_ir_expr(stmt.as.assign.value, ir_fn);
         break;
     case STMT_IFTE:{

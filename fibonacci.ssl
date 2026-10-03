@@ -1,0 +1,15 @@
+fn main() {
+    var curr = 1
+    var prev = 1
+    var tmp = 0
+    var n = 2
+    
+    while n < 11 {
+        tmp = curr
+        curr = curr + prev
+        prev = tmp
+        n = n + 1
+    }
+    
+    return curr
+}
