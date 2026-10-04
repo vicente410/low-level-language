@@ -23,6 +23,19 @@ Type get_type_from_id(IdTypes id_types, String_View id) {
     .kind = TYPE_NONE};
 }
 
+AstFn get_fn_decl(AstProgram *program, String_View id) {
+    for (size_t i = 0; i < program->count; i++) {
+        if (program->data[i].kind == DECL_FN
+            && sv_eq(program->data[i].as.fn.id, id)) {
+            return program->data[i].as.fn;
+        }
+    }
+
+    fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
+            SV_ARG(id));
+    exit(1);
+}
+
 void start_scope(IdTypes *id_types) {
     da_push(id_types, ((IdType) {
                        .type.kind = TYPE_NONE}));
@@ -35,7 +48,7 @@ void end_scope(IdTypes *id_types) {
     (void) da_pop(id_types);
 }
 
-Type type_expr(Expr *expr, IdTypes *id_types) {
+Type type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
     switch (expr->kind) {
     case EXPR_BOOL_LIT:
         expr->type.kind = TYPE_BOOL;
@@ -53,7 +66,8 @@ Type type_expr(Expr *expr, IdTypes *id_types) {
         break;
     case EXPR_UNOP:
         if (sv_eq_cstr(expr->as.unop.op, "!")) {
-            if (type_expr(expr->as.unop.expr, id_types).kind != TYPE_BOOL) {
+            if (type_expr(program, expr->as.unop.expr, id_types).kind !=
+                TYPE_BOOL) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
@@ -70,11 +84,13 @@ Type type_expr(Expr *expr, IdTypes *id_types) {
             sv_eq_cstr(expr->as.binop.op, "/") ||
             sv_eq_cstr(expr->as.binop.op, "%")
             ) {
-            if (type_expr(expr->as.binop.lhs, id_types).kind != TYPE_INT) {
+            if (type_expr(program, expr->as.binop.lhs, id_types).kind !=
+                TYPE_INT) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
-            } else if (type_expr(expr->as.binop.rhs, id_types).kind !=
-                       TYPE_INT) {
+            } else
+                if (type_expr(program, expr->as.binop.rhs, id_types).kind
+                    != TYPE_INT) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
@@ -86,11 +102,13 @@ Type type_expr(Expr *expr, IdTypes *id_types) {
                    sv_eq_cstr(expr->as.binop.op, "==") ||
                    sv_eq_cstr(expr->as.binop.op, "!=")
             ) {
-            if (type_expr(expr->as.binop.lhs, id_types).kind != TYPE_INT) {
+            if (type_expr(program, expr->as.binop.lhs, id_types).kind !=
+                TYPE_INT) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
-            } else if (type_expr(expr->as.binop.rhs, id_types).kind !=
-                       TYPE_INT) {
+            } else
+                if (type_expr(program, expr->as.binop.rhs, id_types).kind
+                    != TYPE_INT) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
@@ -98,11 +116,13 @@ Type type_expr(Expr *expr, IdTypes *id_types) {
         } else if (sv_eq_cstr(expr->as.binop.op, "&&") ||
                    sv_eq_cstr(expr->as.binop.op, "||")
             ) {
-            if (type_expr(expr->as.binop.lhs, id_types).kind != TYPE_BOOL) {
+            if (type_expr(program, expr->as.binop.lhs, id_types).kind !=
+                TYPE_BOOL) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
-            } else if (type_expr(expr->as.binop.rhs, id_types).kind !=
-                       TYPE_BOOL) {
+            } else
+                if (type_expr(program, expr->as.binop.rhs, id_types).kind
+                    != TYPE_BOOL) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
@@ -112,15 +132,34 @@ Type type_expr(Expr *expr, IdTypes *id_types) {
             exit(1);
         }
         break;
+    case EXPR_CALL:
+        AstFn fn = get_fn_decl(program, expr->as.call.id);
+
+        if (fn.args.count != expr->as.call.count) {
+            fprintf(stderr, "ERROR: Invalid number of arguments\n");
+            exit(1);
+        }
+
+        for (size_t i = 0; i < fn.args.count; i++) {
+            Type arg_type =
+                type_expr(program, &expr->as.call.data[i], id_types);
+            if (arg_type.kind != fn.args.data[i].type.kind) {
+                fprintf(stderr, "ERROR: Invalid argument types\n");
+                exit(1);
+            }
+        }
+
+        expr->type = fn.ret_type;
+        break;
     }
 
     return expr->type;
 }
 
-void type_stmt(Stmt *stmt, IdTypes *id_types) {
+void type_stmt(AstProgram *program, Stmt *stmt, IdTypes *id_types) {
     switch (stmt->kind) {
     case STMT_RET:
-        type_expr(&stmt->as.ret, id_types);
+        type_expr(program, &stmt->as.ret, id_types);
         break;
     case STMT_VAR:
         if (get_type_from_id(*id_types, stmt->as.var.id).kind != TYPE_NONE) {
@@ -130,47 +169,73 @@ void type_stmt(Stmt *stmt, IdTypes *id_types) {
         }
         IdType id_type = { };
         id_type.id = stmt->as.var.id;
-        id_type.type = type_expr(&stmt->as.var.value, id_types);
+        id_type.type = type_expr(program, &stmt->as.var.value, id_types);
         da_push(id_types, id_type);
         break;
     case STMT_ASSIGN:
-        type_expr(&stmt->as.assign.value, id_types);
+        type_expr(program, &stmt->as.assign.value, id_types);
         break;
     case STMT_IFTE:
-        type_expr(&stmt->as.ifte.cond, id_types);
+        type_expr(program, &stmt->as.ifte.cond, id_types);
         start_scope(id_types);
         for (size_t i = 0; i < stmt->as.ifte.then_body.count; i++) {
-            type_stmt(&stmt->as.ifte.then_body.data[i], id_types);
+            type_stmt(program, &stmt->as.ifte.then_body.data[i], id_types);
         }
         end_scope(id_types);
         start_scope(id_types);
         for (size_t i = 0; i < stmt->as.ifte.else_body.count; i++) {
-            type_stmt(&stmt->as.ifte.else_body.data[i], id_types);
+            type_stmt(program, &stmt->as.ifte.else_body.data[i], id_types);
         }
         end_scope(id_types);
         break;
     case STMT_WHILE:
-        type_expr(&stmt->as.ifte.cond, id_types);
+        type_expr(program, &stmt->as.ifte.cond, id_types);
         start_scope(id_types);
         for (size_t i = 0; i < stmt->as.while_stmt.body.count; i++) {
-            type_stmt(&stmt->as.while_stmt.body.data[i], id_types);
+            type_stmt(program, &stmt->as.while_stmt.body.data[i],
+                      id_types);
         }
         end_scope(id_types);
+        break;
+    case STMT_CALL:
+        AstFn fn = get_fn_decl(program, stmt->as.call.id);
+
+        if (fn.args.count != stmt->as.call.count) {
+            fprintf(stderr, "ERROR: Invalid number of arguments\n");
+            exit(1);
+        }
+
+        for (size_t i = 0; i < fn.args.count; i++) {
+            Type arg_type =
+                type_expr(program, &stmt->as.call.data[i], id_types);
+            if (arg_type.kind != fn.args.data[i].type.kind) {
+                fprintf(stderr, "ERROR: Invalid argument types\n");
+                exit(1);
+            }
+        }
+
         break;
     }
 }
 
-void type_fn(AstFn *fn) {
+void type_fn(AstProgram *program, AstFn *fn) {
     IdTypes id_types = { };
 
+    for (size_t i = 0; i < fn->args.count; i++) {
+        IdType id_type = { };
+        id_type.id = fn->args.data[i].id;
+        id_type.type = fn->args.data[i].type;
+        da_push(&id_types, id_type);
+    }
+
     for (size_t i = 0; i < fn->body.count; i++) {
-        type_stmt(&fn->body.data[i], &id_types);
+        type_stmt(program, &fn->body.data[i], &id_types);
     }
 }
 
 void type_program(AstProgram *program) {
     for (size_t i = 0; i < program->count; i++) {
         assert(program->data[i].kind == DECL_FN);
-        type_fn(&program->data[i].as.fn);
+        type_fn(program, &program->data[i].as.fn);
     }
 }

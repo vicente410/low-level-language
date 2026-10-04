@@ -245,7 +245,12 @@ Token read_symbol(Lexer *lexer) {
         while (strchr("+-*/!=<>&|", peek_char(lexer)) != NULL) {
             da_push(&sb, next_char(lexer));
         }
-        token.as.op = sv_from_sb(sb);
+
+        if (sv_eq_cstr(sv_from_sb(sb), "->")) {
+            token.kind = TOKEN_ARROW;
+        } else {
+            token.as.op = sv_from_sb(sb);
+        }
     }
 
     return token;

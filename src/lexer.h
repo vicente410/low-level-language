@@ -30,6 +30,7 @@ typedef enum {
     TOKEN_STRING_LIT,
     TOKEN_SEMICOLON,
     TOKEN_OP,
+    TOKEN_ARROW,
 } TokenKind;
 
 typedef struct {

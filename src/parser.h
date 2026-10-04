@@ -21,6 +21,7 @@ typedef enum {
     EXPR_ID,
     EXPR_UNOP,
     EXPR_BINOP,
+    EXPR_CALL,
 } ExprKind;
 
 typedef struct {
@@ -34,6 +35,13 @@ typedef struct {
     struct Expr *rhs;
 } BinOp;
 
+typedef struct {
+    String_View id;
+    struct Expr *data;
+    size_t count;
+    size_t capacity;
+} Call;
+
 typedef struct Expr {
     Type type;
     ExprKind kind;
@@ -43,6 +51,7 @@ typedef struct Expr {
         String_View id;
         UnOp unop;
         BinOp binop;
+        Call call;
     } as;
 } Expr;
 
@@ -81,6 +90,7 @@ typedef enum {
     STMT_ASSIGN,
     STMT_IFTE,
     STMT_WHILE,
+    STMT_CALL,
 } StmtKind;
 
 typedef struct Stmt {
@@ -91,11 +101,25 @@ typedef struct Stmt {
         Assign assign;
         Ifte ifte;
         While while_stmt;
+        Call call;
     } as;
 } Stmt;
 
 typedef struct {
     String_View id;
+    Type type;
+} Arg;
+
+typedef struct {
+    Arg *data;
+    size_t count;
+    size_t capacity;
+} Args;
+
+typedef struct {
+    String_View id;
+    Args args;
+    Type ret_type;
     Stmts body;
 } AstFn;
 

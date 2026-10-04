@@ -1,5 +1,26 @@
 #include "parser.h"
 
+String_View type_to_sv(Type type, size_t indent) {
+    String_Builder sb = { };
+
+    for (size_t i = 0; i < indent; i++)
+        sb_appendf(&sb, "    ");
+
+    switch (type.kind) {
+    case TYPE_NONE:
+        sb_appendf(&sb, "NONE");
+        break;
+    case TYPE_BOOL:
+        sb_appendf(&sb, "BOOL");
+        break;
+    case TYPE_INT:
+        sb_appendf(&sb, "INT");
+        break;
+    }
+
+    return sv_from_sb(sb);
+}
+
 String_View expr_to_sv(Expr expr, size_t indent) {
     String_Builder sb = { };
 
@@ -36,6 +57,17 @@ String_View expr_to_sv(Expr expr, size_t indent) {
                        SV_ARG(expr.as.binop.op));
             sb_appendf(&sb, SV_FMT "\n", SV_ARG(lhs_sv));
             sb_appendf(&sb, SV_FMT, SV_ARG(rhs_sv));
+        }
+        break;
+    case EXPR_CALL:{
+            sb_appendf(&sb, "CALL(" SV_FMT ")\n", SV_ARG(expr.as.call.id));
+            for (size_t i = 0; i < expr.as.call.count; i++) {
+                String_View arg_sv =
+                    expr_to_sv(expr.as.call.data[i], indent + 1);
+                sb_appendf(&sb, SV_FMT, SV_ARG(arg_sv));
+                if (i < expr.as.call.count - 1)
+                    sb_appendf(&sb, "\n");
+            }
         }
         break;
     }
@@ -123,6 +155,17 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
             }
         }
         break;
+    case EXPR_CALL:{
+            sb_appendf(&sb, "CALL(" SV_FMT ")\n", SV_ARG(stmt.as.call.id));
+            for (size_t i = 0; i < stmt.as.call.count; i++) {
+                String_View arg_sv =
+                    expr_to_sv(stmt.as.call.data[i], indent + 1);
+                sb_appendf(&sb, SV_FMT, SV_ARG(arg_sv));
+                if (i < stmt.as.call.count - 1)
+                    sb_appendf(&sb, "\n");
+            }
+        }
+        break;
     }
 
     return sv_from_sb(sb);
@@ -138,6 +181,19 @@ String_View decl_to_sv(Decl decl, size_t indent) {
     case DECL_FN:
         sb_appendf(&sb, "FN " SV_FMT "\n", SV_ARG(decl.as.fn.id));
 
+        for (size_t i = 0; i < decl.as.fn.args.count; i++) {
+            String_View type_sv =
+                type_to_sv(decl.as.fn.args.data[i].type, indent + 1);
+            sb_appendf(&sb, SV_FMT "\n",
+                       SV_ARG(decl.as.fn.args.data[i].id));
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+        }
+
+        sb_appendf(&sb, "RET\n");
+        String_View type_sv = type_to_sv(decl.as.fn.ret_type, indent + 1);
+        sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+
+        sb_appendf(&sb, "DO\n");
         for (size_t i = 0; i < decl.as.fn.body.count; i++) {
             String_View stmt_sv =
                 stmt_to_sv(decl.as.fn.body.data[i], indent + 1);
@@ -147,6 +203,22 @@ String_View decl_to_sv(Decl decl, size_t indent) {
     }
 
     return sv_from_sb(sb);
+}
+
+Type parse_type(Lexer *lexer) {
+    Type type = { };
+    Token token = next_token(lexer);
+    assert(token.kind == TOKEN_ID);
+
+    if (sv_eq_cstr(token.as.id, "int")) {
+        type.kind = TYPE_INT;
+    } else if (sv_eq_cstr(token.as.id, "bool")) {
+        type.kind = TYPE_BOOL;
+    } else {
+        assert(false);
+    }
+
+    return type;
 }
 
 Expr *parse_expr(Lexer *lexer, size_t precedence) {
@@ -171,8 +243,27 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expr->as.int_lit = token.as.int_lit;
             break;
         case TOKEN_ID:
-            expr->kind = EXPR_ID;
-            expr->as.id = token.as.id;
+            if (accept_token(lexer, TOKEN_OPEN_PAREN)) {
+                expr->kind = EXPR_CALL;
+                expr->as.call.id = token.as.id;
+
+                while (1) {
+                    if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
+                        break;
+                    }
+
+                    da_push(&expr->as.call, *parse_expr(lexer, 0));
+
+                    if (accept_token(lexer, TOKEN_COMMA)) {
+                        continue;
+                    } else if (peek_token(lexer).kind != TOKEN_CLOSE_PAREN) {
+                        assert(false);
+                    }
+                }
+            } else {
+                expr->kind = EXPR_ID;
+                expr->as.id = token.as.id;
+            }
             break;
         case TOKEN_OPEN_PAREN:
             expr = parse_expr(lexer, 0);
@@ -322,12 +413,30 @@ Stmt parse_stmt(Lexer *lexer) {
 
         break;
     case TOKEN_ID:
-        stmt.kind = STMT_ASSIGN;
-        stmt.as.assign.id = token.as.id;
+        if (accept_token(lexer, TOKEN_OPEN_PAREN)) {
+            stmt.kind = STMT_CALL;
+            stmt.as.call.id = token.as.id;
+            while (1) {
+                if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
+                    break;
+                }
 
-        expect_token(lexer, TOKEN_EQUAL);
+                da_push(&stmt.as.call, *parse_expr(lexer, 0));
 
-        stmt.as.assign.value = *parse_expr(lexer, 0);
+                if (accept_token(lexer, TOKEN_COMMA)) {
+                    continue;
+                } else if (peek_token(lexer).kind != TOKEN_CLOSE_PAREN) {
+                    assert(false);
+                }
+            }
+        } else {
+            stmt.kind = STMT_ASSIGN;
+            stmt.as.assign.id = token.as.id;
+
+            expect_token(lexer, TOKEN_EQUAL);
+
+            stmt.as.assign.value = *parse_expr(lexer, 0);
+        }
         break;
     default:
         String_View pos_sv = position_to_sv(token.pos);
@@ -352,7 +461,32 @@ Decl parse_decl(Lexer *lexer) {
         decl.as.fn.id = token.as.id;
 
         expect_token(lexer, TOKEN_OPEN_PAREN);
-        expect_token(lexer, TOKEN_CLOSE_PAREN);
+        while (1) {
+            if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
+                break;
+            }
+            Arg arg = { };
+
+            token = next_token(lexer);
+            assert(token.kind == TOKEN_ID);
+            arg.id = token.as.id;
+
+            expect_token(lexer, TOKEN_COLON);
+            arg.type = parse_type(lexer);
+
+            da_push(&decl.as.fn.args, arg);
+
+            if (accept_token(lexer, TOKEN_COMMA)) {
+                continue;
+            } else if (peek_token(lexer).kind != TOKEN_CLOSE_PAREN) {
+                assert(false);
+            }
+        }
+
+        if (accept_token(lexer, TOKEN_ARROW)) {
+            decl.as.fn.ret_type = parse_type(lexer);
+        }
+
         expect_token(lexer, TOKEN_OPEN_CURLY);
 
         while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
