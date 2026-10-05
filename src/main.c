@@ -8,6 +8,8 @@
 #include "gen_asm.h"
 #define UTILS_IMPLEMENTATION
 #include "utils.h"
+#include "unistd.h"
+#include "sys/wait.h"
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -42,19 +44,36 @@ int main(int argc, char **argv) {
     }
 
     String_View assembly = compile_program(ir);
-    printf(SV_FMT "\n", SV_ARG(assembly));
+    if (argc == 3 && strcmp(argv[2], "--asm") == 0) {
+        printf(SV_FMT "\n", SV_ARG(assembly));
+        return 0;
+    }
 
-    /*for (size_t i = 0; i < program.count; i++) {
-       String_View decl_sv = decl_to_sv(program.data[i], 0);
-       printf(SV_FMT"\n", SV_ARG(decl_sv));
-       } */
+    char *asm_name = strdup(program_name);
+    asm_name[strlen(asm_name) - 3] = 'a';
+    asm_name[strlen(asm_name) - 2] = 's';
+    asm_name[strlen(asm_name) - 1] = 'm';
+    FILE *f = fopen(asm_name, "wb");
+    fwrite(assembly.data, 1, assembly.count, f);
+    fclose(f);
 
-    /*while (true) {
-       Token token = next_token(&lexer);
-       if (token.kind == TOKEN_EOF) break;
-       String_View token_sv = token_to_sv(token);
-       printf(SV_FMT"\n", SV_ARG(token_sv));
-       } */
+    char *const cmd[] = { "fasm", asm_name, NULL };
+
+    pid_t pid = fork();
+
+    switch (pid) {
+    case -1:
+        perror("fork");
+        exit(1);
+    case 0:
+        execvp(cmd[0], cmd);
+        perror("execvp");
+        exit(1);
+    default:
+        wait(0);
+    }
+
+    remove(asm_name);
 
     return 0;
 }
