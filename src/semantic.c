@@ -237,7 +237,7 @@ void type_fn(AstProgram *program, AstFn *fn) {
         IdType id_type = { };
         id_type.id = fn->args.data[i].id;
         id_type.type = fn->args.data[i].type;
-        id_type.param_idx = i + 1;
+        id_type.param_idx = fn->args.count - i;
         da_push(&id_types, id_type);
     }
 

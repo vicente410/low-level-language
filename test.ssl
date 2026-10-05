@@ -1,7 +1,19 @@
-fn main(a: int, b: bool) {
-    return f(4) + 5
+fn main() {
+    return power(3, 4)
 }
 
-fn f(batata: int) -> int {
-    return batata + 5
+fn square(x: int) -> int {
+    return x * x
+}
+
+fn power(base: int, exponent: int) -> int {
+    var n = 1
+    var result = base
+    
+    while n < exponent {
+        result = result * base
+        n = n + 1
+    }
+    
+    return result
 }

@@ -7,17 +7,16 @@ String_View ir_arg_to_sv(IrArg arg) {
     switch (arg.kind) {
     case IR_INT:
         sb_appendf(&sb, "%d", arg.as.int_lit);
-        //sb_appendf(&sb, "%d:%zu", arg.as.int_lit, arg.size);
         break;
     case IR_REG:
         sb_appendf(&sb, SV_FMT, SV_ARG(arg.as.reg));
-        //sb_appendf(&sb, SV_FMT ":%zu", SV_ARG(arg.as.reg), arg.size);
         break;
     case IR_ARG:
         sb_appendf(&sb, "arg%zu", arg.as.arg - 1);
-        //sb_appendf(&sb, "%zu:%zu", SV_ARG(arg.as.arg), arg.size);
         break;
     }
+
+    sb_appendf(&sb, ":%zu", arg.size);
 
     return sv_from_sb(sb);
 }

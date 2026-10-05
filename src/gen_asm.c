@@ -24,8 +24,15 @@ int get_reg_offset(RegOffsets *offsets, String_View reg) {
 
 size_t get_num_ops(IrInst inst) {
     switch (inst.kind) {
+    case IR_CALL:
+        if (inst.op1.as.reg.count == 0) {
+            return 0;
+        } else {
+            return 1;
+        }
     case IR_LABEL:
     case IR_JMP:
+    case IR_PARAM:
         return 0;
     case IR_JEZ:
     case IR_RET:
@@ -101,7 +108,7 @@ const char *get_rdx_name(size_t size) {
 }
 
 size_t allocate_registers(RegOffsets *offsets, IrFn fn) {
-    size_t offset = 0;
+    size_t offset = 8;
 
     for (size_t i = 0; i < fn.count; i++) {
         IrInst inst = fn.data[i];
@@ -141,6 +148,9 @@ void append_arg(String_Builder *sb, RegOffsets *offsets, IrArg arg) {
     case IR_INT:
         sb_appendf(sb, "%d", arg.as.int_lit);
         break;
+    case IR_ARG:
+        sb_appendf(sb, "[rbp + %zu]", (arg.as.arg + 1) * 8);
+        break;
     }
 }
 
@@ -151,10 +161,16 @@ void compile_fn(String_Builder *sb, IrFn fn) {
 
     RegOffsets offsets = { };
     sb_appendf(sb, "    sub rsp, %zu\n", allocate_registers(&offsets, fn));
+    size_t num_params = 0;
 
     for (size_t i = 0; i < fn.count; i++) {
         IrInst inst = fn.data[i];
-        assert(inst.op1.kind == IR_REG);        // TODO: return might be a number
+        //assert(inst.op1.kind == IR_REG);        // TODO: return might be a number
+        /*if (inst.op1.kind != IR_REG) {
+           fprintf(stderr, "Inst Kind: %d\n", inst.kind);
+           fprintf(stderr, "Op1  Kind: %d\n", inst.op1.kind);
+           exit(1);
+           } */
 
         switch (inst.kind) {
         case IR_LABEL:
@@ -360,6 +376,22 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             append_arg(sb, &offsets, inst.op1);
             sb_appendf(sb, "\n    test al, al");
             sb_appendf(sb, "\n    jz " SV_FMT "\n", SV_ARG(inst.label));
+            break;
+        case IR_PARAM:
+            sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op1.size));
+            append_arg(sb, &offsets, inst.op1);
+            sb_appendf(sb, "\n    push rax\n");
+            num_params += 1;
+            break;
+        case IR_CALL:
+            sb_appendf(sb, "    call " SV_FMT "\n", SV_ARG(inst.label));
+            if (inst.op1.as.reg.count > 0) {
+                sb_appendf(sb, "    mov ");
+                append_arg(sb, &offsets, inst.op1);
+                sb_appendf(sb, ", %s\n", get_rax_name(inst.op1.size));
+            }
+            sb_appendf(sb, "    add rsp, %zu\n", num_params * 8);
+            num_params = 0;
             break;
         }
     }
