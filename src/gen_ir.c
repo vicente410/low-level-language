@@ -16,7 +16,7 @@ String_View ir_arg_to_sv(IrArg arg) {
         break;
     }
 
-    sb_appendf(&sb, ":%zu", arg.size);
+    //sb_appendf(&sb, ":%zu", arg.size);
 
     return sv_from_sb(sb);
 }
