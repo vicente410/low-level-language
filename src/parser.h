@@ -45,6 +45,7 @@ typedef struct {
 typedef struct Expr {
     Type type;
     ExprKind kind;
+    size_t param_idx;
     union {
         bool bool_lit;
         int int_lit;

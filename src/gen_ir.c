@@ -13,6 +13,10 @@ String_View ir_arg_to_sv(IrArg arg) {
         sb_appendf(&sb, SV_FMT, SV_ARG(arg.as.reg));
         //sb_appendf(&sb, SV_FMT ":%zu", SV_ARG(arg.as.reg), arg.size);
         break;
+    case IR_ARG:
+        sb_appendf(&sb, "arg%zu", arg.as.arg - 1);
+        //sb_appendf(&sb, "%zu:%zu", SV_ARG(arg.as.arg), arg.size);
+        break;
     }
 
     return sv_from_sb(sb);
@@ -103,6 +107,18 @@ String_View ir_fn_to_sv(IrFn ir) {
             sb_appendf(&sb, "    jez " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(inst.label));
             break;
+        case IR_PARAM:
+            sb_appendf(&sb, "    param " SV_FMT "\n", SV_ARG(sv_op1));
+            break;
+        case IR_CALL:
+            if (inst.ret) {
+                sb_appendf(&sb, "    call " SV_FMT ", " SV_FMT "\n",
+                           SV_ARG(sv_op1), SV_ARG(inst.label));
+            } else {
+                sb_appendf(&sb, "    call " SV_FMT "\n",
+                           SV_ARG(inst.label));
+            }
+            break;
         }
     }
 
@@ -142,9 +158,15 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
         }
     case EXPR_ID:{
             IrArg ir_arg = { };
-            ir_arg.size = get_type_size(expr.type);
-            ir_arg.kind = IR_REG;
-            ir_arg.as.reg = expr.as.id;
+            if (expr.param_idx == 0) {
+                ir_arg.size = get_type_size(expr.type);
+                ir_arg.kind = IR_REG;
+                ir_arg.as.reg = expr.as.id;
+            } else {
+                ir_arg.size = get_type_size(expr.type);
+                ir_arg.kind = IR_ARG;
+                ir_arg.as.arg = expr.param_idx;
+            }
             return ir_arg;
         }
     case EXPR_UNOP:{
@@ -210,6 +232,28 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             } else {
                 assert(false);
             }
+
+            da_push(ir_fn, inst);
+            return inst.op1;
+        }
+    case EXPR_CALL:{
+            for (size_t i = 0; i < expr.as.call.count; i++) {
+                IrInst inst = { };
+                inst.op1 = gen_ir_expr(expr.as.call.data[i], ir_fn);
+                inst.kind = IR_PARAM;
+                da_push(ir_fn, inst);
+            }
+
+            IrInst inst = { };
+            inst.label = expr.as.call.id;
+            inst.kind = IR_CALL;
+            inst.ret = true;
+
+            String_Builder sb = { };
+            sb_appendf(&sb, "t%d", reg_num++);
+            inst.op1.kind = IR_REG;
+            inst.op1.as.reg = sv_from_sb(sb);
+            inst.op1.size = get_type_size(expr.type);
 
             da_push(ir_fn, inst);
             return inst.op1;
@@ -308,6 +352,18 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
 
             inst.kind = IR_LABEL;
             inst.label = while_end_label;
+        } break;
+    case STMT_CALL:{
+            for (size_t i = 0; i < stmt.as.call.count; i++) {
+                IrInst inst = { };
+                inst.kind = IR_PARAM;
+                inst.op1 = gen_ir_expr(stmt.as.call.data[i], ir_fn);
+                da_push(ir_fn, inst);
+            }
+
+            inst.kind = IR_CALL;
+            inst.label = stmt.as.call.id;
+            inst.ret = false;
         } break;
     }
 

@@ -7,6 +7,7 @@
 typedef enum {
     IR_INT,
     IR_REG,
+    IR_ARG,
 } IrArgKind;
 
 typedef struct {
@@ -16,6 +17,7 @@ typedef struct {
     union {
         int int_lit;
         String_View reg;
+        size_t arg;
     } as;
 } IrArg;
 
@@ -39,6 +41,8 @@ typedef enum {
     IR_NOT,
     IR_JEZ,
     IR_JMP,
+    IR_PARAM,
+    IR_CALL,
 } IrInstKind;
 
 typedef struct {
@@ -47,6 +51,7 @@ typedef struct {
     IrArg op1;
     IrArg op2;
     IrArg op3;
+    bool ret;
 } IrInst;
 
 typedef struct {

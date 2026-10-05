@@ -4,6 +4,7 @@
 typedef struct {
     String_View id;
     Type type;                  // TYPE_NONE represents a new scope
+    size_t param_idx;
 } IdType;
 
 typedef struct {
@@ -21,6 +22,16 @@ Type get_type_from_id(IdTypes id_types, String_View id) {
 
     return (Type) {
     .kind = TYPE_NONE};
+}
+
+size_t get_param_idx_from_id(IdTypes id_types, String_View id) {
+    for (size_t i = 0; i < id_types.count; i++) {
+        if (sv_eq(id_types.data[i].id, id)) {
+            return id_types.data[i].param_idx;
+        }
+    }
+
+    return 0;
 }
 
 AstFn get_fn_decl(AstProgram *program, String_View id) {
@@ -58,6 +69,7 @@ Type type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
         break;
     case EXPR_ID:
         expr->type = get_type_from_id(*id_types, expr->as.id);
+        expr->param_idx = get_param_idx_from_id(*id_types, expr->as.id);
         if (expr->type.kind == TYPE_NONE) {
             fprintf(stderr, "ERROR: Undefined variable " SV_FMT "\n",
                     SV_ARG(expr->as.id));
@@ -225,6 +237,7 @@ void type_fn(AstProgram *program, AstFn *fn) {
         IdType id_type = { };
         id_type.id = fn->args.data[i].id;
         id_type.type = fn->args.data[i].type;
+        id_type.param_idx = i + 1;
         da_push(&id_types, id_type);
     }
 
