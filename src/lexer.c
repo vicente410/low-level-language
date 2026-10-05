@@ -4,7 +4,7 @@
 bool lexer_init(Lexer *lexer, char *filename) {
     lexer->fp = fopen(filename, "r");
     lexer->pos = (Position) {
-    .filename = sv_from_cstr(filename),.line = 0,.col = 0,};
+    .filename = sv_from_cstr(filename),.line = 1,.col = 0,};
     lexer->has_peeked_char = false;
     lexer->has_peeked_token = false;
 
@@ -13,6 +13,9 @@ bool lexer_init(Lexer *lexer, char *filename) {
 
 String_View token_to_sv(Token token) {
     String_Builder sb = { };
+
+    sb_appendf(&sb, SV_FMT ":%zu:%zu: ", SV_ARG(token.pos.filename),
+               token.pos.line, token.pos.col);
 
     switch (token.kind) {
     case TOKEN_EOF:
@@ -23,6 +26,9 @@ String_View token_to_sv(Token token) {
         break;
     case TOKEN_COLON:
         sb_appendf(&sb, "TOKEN_COLON");
+        break;
+    case TOKEN_EQUAL:
+        sb_appendf(&sb, "TOKEN_EQUAL");
         break;
     case TOKEN_COMMA:
         sb_appendf(&sb, "TOKEN_COMMA");
@@ -82,9 +88,9 @@ String_View token_to_sv(Token token) {
     case TOKEN_OP:
         sb_appendf(&sb, "TOKEN_OP(" SV_FMT ")", SV_ARG(token.as.op));
         break;
-    default:
-        fprintf(stderr, "UNREACHABLE\n");
-        exit(1);
+    case TOKEN_ARROW:
+        sb_appendf(&sb, "TOKEN_ARROW");
+        break;
     }
 
     return sv_from_sb(sb);
@@ -98,13 +104,13 @@ char next_char(Lexer *lexer) {
         ch = lexer->peeked_char;
     } else {
         ch = fgetc(lexer->fp);
-    }
 
-    if (ch == '\n') {
-        lexer->pos.line++;
-        lexer->pos.col = 0;
-    } else {
-        lexer->pos.col++;
+        if (ch == '\n') {
+            lexer->pos.line++;
+            lexer->pos.col = 0;
+        } else {
+            lexer->pos.col++;
+        }
     }
 
     return ch;

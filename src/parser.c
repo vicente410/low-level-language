@@ -296,9 +296,8 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expr->as.unop.expr = parse_expr(lexer, 0);
             break;
         default:
-            String_View pos_sv = position_to_sv(token.pos);
-            fprintf(stderr, SV_FMT " ERROR: invalid expression\n",
-                    SV_ARG(pos_sv));
+            diagnostic_error(token.pos, "invalid expression");
+            diagnostic_print_all();
             exit(1);
         }
     } else {
@@ -392,9 +391,8 @@ Stmt parse_stmt(Lexer *lexer) {
         }
         break;
     default:
-        String_View pos_sv = position_to_sv(token.pos);
-        fprintf(stderr, SV_FMT " ERROR: invalid statement\n",
-                SV_ARG(pos_sv));
+        diagnostic_error(token.pos, "invalid statement");
+        diagnostic_print_all();
         exit(1);
     }
 
@@ -447,9 +445,8 @@ Decl parse_decl(Lexer *lexer) {
         }
         break;
     default:
-        String_View pos_sv = position_to_sv(token.pos);
-        fprintf(stderr, SV_FMT " ERROR: invalid declaration\n",
-                SV_ARG(pos_sv));
+        diagnostic_error(token.pos, "invalid declaration");
+        diagnostic_print_all();
         exit(1);
     }
 

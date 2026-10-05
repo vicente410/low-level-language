@@ -21,6 +21,18 @@ int main(int argc, char **argv) {
 
     Lexer lexer = { };
     lexer_init(&lexer, program_name);
+    if (argc == 3 && strcmp(argv[2], "--tok") == 0) {
+        while (peek_token(&lexer).kind != TOKEN_EOF) {
+            String_View token_sv = token_to_sv(next_token(&lexer));
+            printf(SV_FMT "\n", SV_ARG(token_sv));
+        }
+
+        return 0;
+    }
+
+    String_Builder sb = { };
+    sb_read_file(&sb, program_name);
+    diagnostic_add_file(sv_from_cstr(program_name), sv_from_sb(sb));
 
     AstProgram ast = parse_program(&lexer);
     type_program(&ast);
