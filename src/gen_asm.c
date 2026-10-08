@@ -152,8 +152,15 @@ void append_arg(String_Builder *sb, String_Builder *data,
         sb_appendf(sb, "%d", arg.as.int_lit);
         break;
     case IR_STR:
-        sb_appendf(data, "string_%zu db \"" SV_FMT "\"\n", string_num,
-                   SV_ARG(arg.as.str_lit));
+        sb_appendf(data, "string_%zu db \"", string_num);
+        for (size_t i = 0; i < arg.as.str_lit.count; i++) {
+            if (isprint(arg.as.str_lit.data[i])) {
+                sb_appendf(data, "%c", arg.as.str_lit.data[i]);
+            } else {
+                sb_appendf(data, "\", %d, \"", arg.as.str_lit.data[i]);
+            }
+        }
+        sb_appendf(data, "\"\n", string_num);
         sb_appendf(sb, "string_%zu", string_num);
         string_num += 1;
         break;
@@ -194,9 +201,9 @@ void compile_fn(String_Builder *sb, String_Builder *data, IrFn fn) {
                        get_rax_name(inst.op2.size));
             break;
         case IR_RET:
-            sb_appendf(sb, "    mov %s, [rbp - %zu]\n",
-                       get_rax_name(inst.op1.size),
-                       get_reg_offset(&offsets, inst.op1.as.reg));
+            sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op1.size));
+            append_arg(sb, data, &offsets, inst.op1);
+            sb_appendf(sb, "\n");
             break;
         case IR_ADD:
             assert(inst.op1.size == inst.op2.size
@@ -433,6 +440,15 @@ String_View compile_program(IrProgram program) {
         sb_appendf(&sb, "\n");
         sb_appendf(&data, "\n");
     }
+
+    sb_appendf(&sb, "sys_write:\n");
+    sb_appendf(&sb, "    mov rdi, [rsp + 24]\n");
+    sb_appendf(&sb, "    mov rsi, [rsp + 16]\n");
+    sb_appendf(&sb, "    mov rdx, [rsp + 8]\n");
+    sb_appendf(&sb, "    mov rax, 1\n");
+    sb_appendf(&sb, "    syscall\n");
+    sb_appendf(&sb, "    ret\n");
+    sb_appendf(&sb, "\n");
 
     da_append(&sb, &data);
 

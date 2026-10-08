@@ -34,12 +34,55 @@ size_t get_param_idx_from_id(IdTypes id_types, String_View id) {
     return 0;
 }
 
-AstFn get_fn_decl(AstProgram *program, String_View id) {
+Args get_fn_args(AstProgram *program, String_View id) {
     for (size_t i = 0; i < program->count; i++) {
         if (program->data[i].kind == DECL_FN
             && sv_eq(program->data[i].as.fn.id, id)) {
-            return program->data[i].as.fn;
+            return program->data[i].as.fn.args;
         }
+    }
+
+    if (sv_eq_cstr(id, "sys_write")) {
+        Args sys_write = *(Args *) calloc(1, sizeof(Args));
+
+        da_push(&sys_write, ((Arg) {
+                             .id = sv_from_cstr("fd"),.type.kind =
+                             TYPE_S64,}
+                ));
+
+        Type *type_u8 = calloc(1, sizeof(Type));
+        type_u8->kind = TYPE_U8;
+        da_push(&sys_write, ((Arg) {
+                             .id = sv_from_cstr("buf"),.type.kind =
+                             TYPE_PTR,.type.ptr = type_u8,}
+                ));
+
+        da_push(&sys_write, ((Arg) {
+                             .id = sv_from_cstr("count"),.type.kind =
+                             TYPE_S64,}
+                ));
+
+        return sys_write;
+    }
+
+
+    fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
+            SV_ARG(id));
+    exit(1);
+}
+
+Type get_fn_ret_type(AstProgram *program, String_View id) {
+    for (size_t i = 0; i < program->count; i++) {
+        if (program->data[i].kind == DECL_FN
+            && sv_eq(program->data[i].as.fn.id, id)) {
+            return program->data[i].as.fn.ret_type;
+        }
+    }
+
+    if (sv_eq_cstr(id, "sys_write")) {
+        Type *type = calloc(1, sizeof(Type));
+        type->kind = TYPE_S64;
+        return *type;
     }
 
     fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
@@ -162,23 +205,23 @@ Type type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
         }
         break;
     case EXPR_CALL:
-        AstFn fn = get_fn_decl(program, expr->as.call.id);
+        Args fn_args = get_fn_args(program, expr->as.call.id);
 
-        if (fn.args.count != expr->as.call.count) {
+        if (fn_args.count != expr->as.call.count) {
             fprintf(stderr, "ERROR: Invalid number of arguments\n");
             exit(1);
         }
 
-        for (size_t i = 0; i < fn.args.count; i++) {
+        for (size_t i = 0; i < fn_args.count; i++) {
             Type arg_type =
                 type_expr(program, &expr->as.call.data[i], id_types);
-            if (!types_match(&arg_type, &fn.args.data[i].type)) {
+            if (!types_match(&arg_type, &fn_args.data[i].type)) {
                 fprintf(stderr, "ERROR: Invalid argument types\n");
                 exit(1);
             }
         }
 
-        expr->type = fn.ret_type;
+        expr->type = get_fn_ret_type(program, expr->as.call.id);
         break;
     }
 
@@ -231,17 +274,17 @@ void type_stmt(AstProgram *program, Stmt *stmt, IdTypes *id_types) {
         end_scope(id_types);
         break;
     case STMT_CALL:
-        AstFn fn = get_fn_decl(program, stmt->as.call.id);
+        Args fn_args = get_fn_args(program, stmt->as.call.id);
 
-        if (fn.args.count != stmt->as.call.count) {
+        if (fn_args.count != stmt->as.call.count) {
             fprintf(stderr, "ERROR: Invalid number of arguments\n");
             exit(1);
         }
 
-        for (size_t i = 0; i < fn.args.count; i++) {
+        for (size_t i = 0; i < fn_args.count; i++) {
             Type arg_type =
                 type_expr(program, &stmt->as.call.data[i], id_types);
-            if (!types_match(&arg_type, &fn.args.data[i].type)) {
+            if (!types_match(&arg_type, &fn_args.data[i].type)) {
                 fprintf(stderr, "ERROR: Invalid argument types\n");
                 exit(1);
             }

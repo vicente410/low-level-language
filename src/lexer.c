@@ -139,7 +139,7 @@ Token read_id_or_keyword(Lexer *lexer) {
 
     token.pos = lexer->pos;
 
-    while (isalnum(peek_char(lexer))) {
+    while (isalnum(peek_char(lexer)) || peek_char(lexer) == '_') {
         da_push(&sb, next_char(lexer));
     }
 
@@ -198,7 +198,32 @@ Token read_string_lit(Lexer *lexer) {
 
     next_char(lexer);
     while ((ch = next_char(lexer)) != '"') {
-        da_push(&sb, ch);
+        if (ch == '\\') {
+            switch (next_char(lexer)) {
+            case 'n':
+                da_push(&sb, '\n');
+                break;
+            case 't':
+                da_push(&sb, '\t');
+                break;
+            case 'r':
+                da_push(&sb, '\r');
+                break;
+            case '0':
+                da_push(&sb, '\0');
+                break;
+            case '"':
+                da_push(&sb, '\"');
+                break;
+            case '\\':
+                da_push(&sb, '\\');
+                break;
+            default:
+                assert(false);
+            }
+        } else {
+            da_push(&sb, ch);
+        }
     }
 
     token.kind = TOKEN_STRING_LIT;
