@@ -8,16 +8,20 @@
 typedef enum {
     TYPE_NONE,
     TYPE_BOOL,
-    TYPE_INT,
+    TYPE_U8,
+    TYPE_S64,
+    TYPE_PTR,
 } TypeKind;
 
-typedef struct {
+typedef struct Type {
     TypeKind kind;
+    struct Type *ptr;
 } Type;
 
 typedef enum {
     EXPR_BOOL_LIT,
     EXPR_INT_LIT,
+    EXPR_STR_LIT,
     EXPR_ID,
     EXPR_UNOP,
     EXPR_BINOP,
@@ -49,6 +53,7 @@ typedef struct Expr {
     union {
         bool bool_lit;
         int int_lit;
+        String_View str_lit;
         String_View id;
         UnOp unop;
         BinOp binop;
@@ -66,6 +71,7 @@ typedef struct {
 
 typedef struct {
     String_View id;
+    Type type;
     Expr value;
 } Var;
 

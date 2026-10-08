@@ -6,6 +6,7 @@
 
 typedef enum {
     IR_INT,
+    IR_STR,
     IR_REG,
     IR_ARG,
 } IrArgKind;
@@ -16,6 +17,7 @@ typedef struct {
 
     union {
         int int_lit;
+        String_View str_lit;
         String_View reg;
         size_t arg;
     } as;

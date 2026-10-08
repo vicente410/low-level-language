@@ -140,7 +140,10 @@ size_t allocate_registers(RegOffsets *offsets, IrFn fn) {
     return offset;
 }
 
-void append_arg(String_Builder *sb, RegOffsets *offsets, IrArg arg) {
+void append_arg(String_Builder *sb, String_Builder *data,
+                RegOffsets *offsets, IrArg arg) {
+    static size_t string_num = 0;
+
     switch (arg.kind) {
     case IR_REG:
         sb_appendf(sb, "[rbp - %zu]", get_reg_offset(offsets, arg.as.reg));
@@ -148,13 +151,19 @@ void append_arg(String_Builder *sb, RegOffsets *offsets, IrArg arg) {
     case IR_INT:
         sb_appendf(sb, "%d", arg.as.int_lit);
         break;
+    case IR_STR:
+        sb_appendf(data, "string_%zu db \"" SV_FMT "\"\n", string_num,
+                   SV_ARG(arg.as.str_lit));
+        sb_appendf(sb, "string_%zu", string_num);
+        string_num += 1;
+        break;
     case IR_ARG:
         sb_appendf(sb, "[rbp + %zu]", (arg.as.arg + 1) * 8);
         break;
     }
 }
 
-void compile_fn(String_Builder *sb, IrFn fn) {
+void compile_fn(String_Builder *sb, String_Builder *data, IrFn fn) {
     sb_appendf(sb, SV_FMT ":\n", SV_ARG(fn.id));
     sb_appendf(sb, "    push rbp\n");
     sb_appendf(sb, "    mov rbp, rsp\n");
@@ -179,7 +188,7 @@ void compile_fn(String_Builder *sb, IrFn fn) {
         case IR_MOV:
             assert(inst.op1.size == inst.op2.size);
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
                        get_reg_offset(&offsets, inst.op1.as.reg),
                        get_rax_name(inst.op2.size));
@@ -193,9 +202,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == inst.op2.size
                    && inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    add %s, ", get_rax_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
                        get_reg_offset(&offsets, inst.op1.as.reg),
                        get_rax_name(inst.op3.size));
@@ -204,9 +213,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == inst.op2.size
                    && inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    sub %s, ", get_rax_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
                        get_reg_offset(&offsets, inst.op1.as.reg),
                        get_rax_name(inst.op3.size));
@@ -215,9 +224,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == inst.op2.size
                    && inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rdx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    imul %s, %s",
                        get_rax_name(inst.op3.size),
                        get_rdx_name(inst.op2.size));
@@ -229,10 +238,10 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == inst.op2.size
                    && inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    xor rax, rax");
             sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    xor rdx, rdx");
             sb_appendf(sb, "\n    idiv %s", get_rbx_name(inst.op3.size));
             sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
@@ -243,10 +252,10 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == inst.op2.size
                    && inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    xor rax, rax");
             sb_appendf(sb, "\n    mov %s, ", get_rax_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    xor rdx, rdx");
             sb_appendf(sb, "\n    idiv %s", get_rbx_name(inst.op3.size));
             if (inst.op1.size == 1) {
@@ -262,9 +271,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setl al");
@@ -275,9 +284,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setle al");
@@ -288,9 +297,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setg al");
@@ -301,9 +310,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setge al");
@@ -314,9 +323,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    sete al");
@@ -327,9 +336,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == inst.op3.size);
             sb_appendf(sb, "    mov %s, ", get_rbx_name(inst.op2.size));
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op3.size));
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    cmp %s, %s", get_rbx_name(inst.op2.size),
                        get_rdx_name(inst.op3.size));
             sb_appendf(sb, "\n    setne al");
@@ -341,9 +350,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op2.size == 1);
             assert(inst.op3.size == 1);
             sb_appendf(sb, "    mov al, ");
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    and al, ");
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
@@ -352,9 +361,9 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op2.size == 1);
             assert(inst.op3.size == 1);
             sb_appendf(sb, "    mov al, ");
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    or al, ");
-            append_arg(sb, &offsets, inst.op3);
+            append_arg(sb, data, &offsets, inst.op3);
             sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
             break;
@@ -362,7 +371,7 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             assert(inst.op1.size == 1);
             assert(inst.op2.size == 1);
             sb_appendf(sb, "    mov al, ");
-            append_arg(sb, &offsets, inst.op2);
+            append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    not al");
             sb_appendf(sb, "\n    mov [rbp - %zu], al\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
@@ -373,13 +382,13 @@ void compile_fn(String_Builder *sb, IrFn fn) {
         case IR_JEZ:
             assert(inst.op1.size == 1);
             sb_appendf(sb, "    mov al, ");
-            append_arg(sb, &offsets, inst.op1);
+            append_arg(sb, data, &offsets, inst.op1);
             sb_appendf(sb, "\n    test al, al");
             sb_appendf(sb, "\n    jz " SV_FMT "\n", SV_ARG(inst.label));
             break;
         case IR_PARAM:
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op1.size));
-            append_arg(sb, &offsets, inst.op1);
+            append_arg(sb, data, &offsets, inst.op1);
             sb_appendf(sb, "\n    push rax\n");
             num_params += 1;
             break;
@@ -387,7 +396,7 @@ void compile_fn(String_Builder *sb, IrFn fn) {
             sb_appendf(sb, "    call " SV_FMT "\n", SV_ARG(inst.label));
             if (inst.op1.as.reg.count > 0) {
                 sb_appendf(sb, "    mov ");
-                append_arg(sb, &offsets, inst.op1);
+                append_arg(sb, data, &offsets, inst.op1);
                 sb_appendf(sb, ", %s\n", get_rax_name(inst.op1.size));
             }
             sb_appendf(sb, "    add rsp, %zu\n", num_params * 8);
@@ -403,6 +412,7 @@ void compile_fn(String_Builder *sb, IrFn fn) {
 
 String_View compile_program(IrProgram program) {
     String_Builder sb = { 0 };
+    String_Builder data = { 0 };
 
     sb_appendf(&sb, "format ELF64 executable 3\n");
     sb_appendf(&sb, "\n");
@@ -415,10 +425,16 @@ String_View compile_program(IrProgram program) {
     sb_appendf(&sb, "    syscall\n");
     sb_appendf(&sb, "\n");
 
+    sb_appendf(&data, "segment readable writeable\n");
+    sb_appendf(&data, "\n");
+
     for (size_t i = 0; i < program.count; i++) {
-        compile_fn(&sb, program.data[i]);
+        compile_fn(&sb, &data, program.data[i]);
         sb_appendf(&sb, "\n");
+        sb_appendf(&data, "\n");
     }
+
+    da_append(&sb, &data);
 
     return sv_from_sb(sb);
 }

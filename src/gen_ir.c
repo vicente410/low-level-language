@@ -8,6 +8,9 @@ String_View ir_arg_to_sv(IrArg arg) {
     case IR_INT:
         sb_appendf(&sb, "%d", arg.as.int_lit);
         break;
+    case IR_STR:
+        sb_appendf(&sb, "\"" SV_FMT "\"", SV_ARG(arg.as.str_lit));
+        break;
     case IR_REG:
         sb_appendf(&sb, SV_FMT, SV_ARG(arg.as.reg));
         break;
@@ -130,7 +133,11 @@ size_t get_type_size(Type type) {
         assert(false);
     case TYPE_BOOL:
         return 1;
-    case TYPE_INT:
+    case TYPE_U8:
+        return 1;
+    case TYPE_S64:
+        return 8;
+    case TYPE_PTR:
         return 8;
     default:
         assert(false);
@@ -153,6 +160,13 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             ir_arg.size = get_type_size(expr.type);
             ir_arg.kind = IR_INT;
             ir_arg.as.int_lit = expr.as.int_lit;
+            return ir_arg;
+        }
+    case EXPR_STR_LIT:{
+            IrArg ir_arg = { };
+            ir_arg.size = get_type_size(expr.type);
+            ir_arg.kind = IR_STR;
+            ir_arg.as.str_lit = expr.as.str_lit;
             return ir_arg;
         }
     case EXPR_ID:{
@@ -362,6 +376,7 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
 
             inst.kind = IR_CALL;
             inst.label = stmt.as.call.id;
+            inst.op1.as.reg.count = 0;
             inst.ret = false;
         } break;
     }

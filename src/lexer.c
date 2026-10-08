@@ -248,7 +248,7 @@ Token read_symbol(Lexer *lexer) {
         token.kind = TOKEN_OP;
         String_Builder sb = { };
         da_push(&sb, ch);
-        while (strchr("+-*/!=<>&|", peek_char(lexer)) != NULL) {
+        while (strchr("+-/!=<>&|", peek_char(lexer)) != NULL) {
             da_push(&sb, next_char(lexer));
         }
 

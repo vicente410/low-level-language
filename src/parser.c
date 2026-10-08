@@ -13,8 +13,16 @@ String_View type_to_sv(Type type, size_t indent) {
     case TYPE_BOOL:
         sb_appendf(&sb, "BOOL");
         break;
-    case TYPE_INT:
-        sb_appendf(&sb, "INT");
+    case TYPE_U8:
+        sb_appendf(&sb, "U8");
+        break;
+    case TYPE_S64:
+        sb_appendf(&sb, "S64");
+        break;
+    case TYPE_PTR:
+        sb_appendf(&sb, "PTR\n");
+        String_View type_sv = type_to_sv(*type.ptr, indent + 1);
+        sb_appendf(&sb, SV_FMT, SV_ARG(type_sv));
         break;
     }
 
@@ -37,6 +45,9 @@ String_View expr_to_sv(Expr expr, size_t indent) {
         break;
     case EXPR_INT_LIT:
         sb_appendf(&sb, "INT(%d)", expr.as.int_lit);
+        break;
+    case EXPR_STR_LIT:
+        sb_appendf(&sb, "STR(" SV_FMT ")", SV_ARG(expr.as.str_lit));
         break;
     case EXPR_ID:
         sb_appendf(&sb, "ID(" SV_FMT ")", SV_ARG(expr.as.id));
@@ -90,6 +101,8 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
         break;
     case STMT_VAR:{
             sb_appendf(&sb, "VAR " SV_FMT "\n", SV_ARG(stmt.as.var.id));
+            String_View type_sv = type_to_sv(stmt.as.var.type, indent);
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
             String_View expr_sv =
                 expr_to_sv(stmt.as.var.value, indent + 1);
             sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
@@ -155,7 +168,7 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
             }
         }
         break;
-    case EXPR_CALL:{
+    case STMT_CALL:{
             sb_appendf(&sb, "CALL(" SV_FMT ")\n", SV_ARG(stmt.as.call.id));
             for (size_t i = 0; i < stmt.as.call.count; i++) {
                 String_View arg_sv =
@@ -205,15 +218,23 @@ String_View decl_to_sv(Decl decl, size_t indent) {
     return sv_from_sb(sb);
 }
 
-Type parse_type(Lexer *lexer) {
-    Type type = { };
+Type *parse_type(Lexer *lexer) {
+    Type *type = calloc(1, sizeof(Type));
     Token token = next_token(lexer);
-    assert(token.kind == TOKEN_ID);
 
-    if (sv_eq_cstr(token.as.id, "int")) {
-        type.kind = TYPE_INT;
-    } else if (sv_eq_cstr(token.as.id, "bool")) {
-        type.kind = TYPE_BOOL;
+    if (token.kind == TOKEN_ID) {
+        if (sv_eq_cstr(token.as.id, "s64")) {
+            type->kind = TYPE_S64;
+        } else if (sv_eq_cstr(token.as.id, "u8")) {
+            type->kind = TYPE_U8;
+        } else if (sv_eq_cstr(token.as.id, "bool")) {
+            type->kind = TYPE_BOOL;
+        } else {
+            assert(false);
+        }
+    } else if (token.kind == TOKEN_OP && sv_eq_cstr(token.as.op, "*")) {
+        type->kind = TYPE_PTR;
+        type->ptr = parse_type(lexer);
     } else {
         assert(false);
     }
@@ -262,6 +283,10 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
         case TOKEN_INT_LIT:
             expr->kind = EXPR_INT_LIT;
             expr->as.int_lit = token.as.int_lit;
+            break;
+        case TOKEN_STRING_LIT:
+            expr->kind = EXPR_STR_LIT;
+            expr->as.str_lit = token.as.string_lit;
             break;
         case TOKEN_ID:
             if (accept_token(lexer, TOKEN_OPEN_PAREN)) {
@@ -333,6 +358,9 @@ Stmt parse_stmt(Lexer *lexer) {
         assert(token.kind == TOKEN_ID);
         stmt.as.var.id = token.as.id;
 
+        if (accept_token(lexer, TOKEN_COLON)) {
+            stmt.as.var.type = *parse_type(lexer);
+        }
         expect_token(lexer, TOKEN_EQUAL);
 
         stmt.as.var.value = *parse_expr(lexer, 0);
@@ -423,7 +451,7 @@ Decl parse_decl(Lexer *lexer) {
             arg.id = token.as.id;
 
             expect_token(lexer, TOKEN_COLON);
-            arg.type = parse_type(lexer);
+            arg.type = *parse_type(lexer);
 
             da_push(&decl.as.fn.args, arg);
 
@@ -435,7 +463,7 @@ Decl parse_decl(Lexer *lexer) {
         }
 
         if (accept_token(lexer, TOKEN_ARROW)) {
-            decl.as.fn.ret_type = parse_type(lexer);
+            decl.as.fn.ret_type = *parse_type(lexer);
         }
 
         expect_token(lexer, TOKEN_OPEN_CURLY);
