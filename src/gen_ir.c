@@ -140,6 +140,7 @@ String_View ir_fn_to_sv(IrFn ir) {
 }
 
 size_t get_type_size(Type *type) {
+    assert(type);
     switch (type->kind) {
     case TYPE_NONE:
         assert(false);
@@ -233,7 +234,6 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             inst.op2 = gen_ir_expr(*expr.as.binop.lhs, ir_fn);
 
             if (sv_eq_cstr(expr.as.binop.op, ".") &&
-                expr.as.binop.lhs->kind == EXPR_ID &&
                 expr.as.binop.rhs->kind == EXPR_ID &&
                 sv_eq_cstr(expr.as.binop.rhs->as.id, "*")) {
                 inst.kind = IR_DEREF;
