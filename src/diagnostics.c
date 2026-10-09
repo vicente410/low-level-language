@@ -56,7 +56,8 @@ void diagnostic_add_file(String_View filename, String_View contents) {
 
     source_file.filename = filename;
 
-    while ((line = sv_split_delim(&contents, '\n')).count != 0) {
+    while (contents.count != 0) {
+        line = sv_split_delim(&contents, '\n');
         da_push(&source_file.lines, line);
     }
 

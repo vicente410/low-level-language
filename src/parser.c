@@ -101,8 +101,10 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
         break;
     case STMT_VAR:{
             sb_appendf(&sb, "VAR " SV_FMT "\n", SV_ARG(stmt.as.var.id));
-            String_View type_sv = type_to_sv(stmt.as.var.type, indent);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+            if (stmt.as.var.type) {
+                String_View type_sv = type_to_sv(stmt.as.var.type, indent);
+                sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+            }
             String_View expr_sv =
                 expr_to_sv(stmt.as.var.value, indent + 1);
             sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
@@ -202,9 +204,12 @@ String_View decl_to_sv(Decl decl, size_t indent) {
             sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
         }
 
-        sb_appendf(&sb, "RET\n");
-        String_View type_sv = type_to_sv(decl.as.fn.ret_type, indent + 1);
-        sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+        if (decl.as.fn.ret_type) {
+            sb_appendf(&sb, "RET\n");
+            String_View type_sv =
+                type_to_sv(decl.as.fn.ret_type, indent + 1);
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+        }
 
         sb_appendf(&sb, "DO\n");
         for (size_t i = 0; i < decl.as.fn.body.count; i++) {

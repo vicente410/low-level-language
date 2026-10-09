@@ -95,9 +95,7 @@ Type *get_fn_ret_type(AstProgram *program, String_View id) {
     }
 
     if (sv_eq_cstr(id, "sys_write")) {
-        Type *type = calloc(1, sizeof(Type));
-        type->kind = TYPE_S64;
-        return type;
+        return &type_s64;
     }
 
     fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
@@ -156,8 +154,9 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
-            expr->type->kind = TYPE_BOOL;
+            expr->type = &type_bool;
         } else if (sv_eq_cstr(expr->as.unop.op, "&")) {
+            expr->type = calloc(1, sizeof(Type));
             expr->type->kind = TYPE_PTR;
             expr->type->ptr =
                 type_expr(program, expr->as.unop.expr, id_types);
@@ -183,7 +182,7 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
-            expr->type->kind = TYPE_S64;
+            expr->type = &type_s64;
         } else if (sv_eq_cstr(expr->as.binop.op, "<") ||
                    sv_eq_cstr(expr->as.binop.op, "<=") ||
                    sv_eq_cstr(expr->as.binop.op, ">") ||
@@ -201,7 +200,7 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
-            expr->type->kind = TYPE_BOOL;
+            expr->type = &type_bool;
         } else if (sv_eq_cstr(expr->as.binop.op, "&&") ||
                    sv_eq_cstr(expr->as.binop.op, "||")
             ) {
@@ -215,7 +214,7 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
                 fprintf(stderr, "ERROR: Invalid type\n");
                 exit(1);
             }
-            expr->type->kind = TYPE_BOOL;
+            expr->type = &type_bool;
         } else {
             fprintf(stderr, "ERROR: Unknown operator\n");
             exit(1);
@@ -260,7 +259,7 @@ void type_stmt(AstProgram *program, Stmt *stmt, IdTypes *id_types) {
         IdType id_type = { };
         id_type.id = stmt->as.var.id;
         id_type.type = type_expr(program, &stmt->as.var.value, id_types);
-        if (stmt->as.var.type->kind != TYPE_NONE
+        if (stmt->as.var.type && stmt->as.var.type->kind != TYPE_NONE
             && !types_match(id_type.type, stmt->as.var.type)) {
             assert(false);
         }

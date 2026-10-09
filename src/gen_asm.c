@@ -37,6 +37,7 @@ size_t get_num_ops(IrInst inst) {
     case IR_JEZ:
     case IR_RET:
         return 1;
+    case IR_REF:
     case IR_NOT:
     case IR_MOV:
         return 2;
@@ -204,6 +205,13 @@ void compile_fn(String_Builder *sb, String_Builder *data, IrFn fn) {
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op1.size));
             append_arg(sb, data, &offsets, inst.op1);
             sb_appendf(sb, "\n");
+            break;
+        case IR_REF:
+            assert(inst.op1.size == 8);
+            sb_appendf(sb, "    lea rax, ");
+            append_arg(sb, data, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg));
             break;
         case IR_ADD:
             assert(inst.op1.size == inst.op2.size

@@ -46,6 +46,10 @@ String_View ir_fn_to_sv(IrFn ir) {
         case IR_RET:
             sb_appendf(&sb, "    ret " SV_FMT "\n", SV_ARG(sv_op1));
             break;
+        case IR_REF:
+            sb_appendf(&sb, "    ref " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2));
+            break;
         case IR_ADD:
             sb_appendf(&sb, "    add " SV_FMT ", " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(sv_op2), SV_ARG(sv_op3));
@@ -193,8 +197,10 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
 
             inst.op2 = gen_ir_expr(*expr.as.unop.expr, ir_fn);
 
-            if (sv_eq_cstr(expr.as.binop.op, "!")) {
+            if (sv_eq_cstr(expr.as.unop.op, "!")) {
                 inst.kind = IR_NOT;
+            } else if (sv_eq_cstr(expr.as.unop.op, "&")) {
+                inst.kind = IR_REF;
             } else {
                 assert(false);
             }

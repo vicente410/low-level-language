@@ -27,6 +27,7 @@ typedef enum {
     IR_LABEL,
     IR_MOV,
     IR_RET,
+    IR_REF,
     IR_ADD,
     IR_SUB,
     IR_MUL,
