@@ -215,6 +215,15 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
                 exit(1);
             }
             expr->type = &type_bool;
+        } else if (sv_eq_cstr(expr->as.binop.op, ".") &&
+                   expr->as.binop.rhs->kind == EXPR_ID &&
+                   sv_eq_cstr(expr->as.binop.rhs->as.id, "*")) {
+            if (type_expr(program, expr->as.binop.lhs, id_types)->kind !=
+                TYPE_PTR) {
+                fprintf(stderr, "ERROR: Dereferencing a non-pointer\n");
+                exit(1);
+            }
+            expr->type = expr->as.binop.lhs->type->ptr;
         } else {
             fprintf(stderr, "ERROR: Unknown operator\n");
             exit(1);
@@ -249,23 +258,26 @@ void type_stmt(AstProgram *program, Stmt *stmt, IdTypes *id_types) {
     case STMT_RET:
         type_expr(program, &stmt->as.ret, id_types);
         break;
-    case STMT_VAR:
-        if (get_type_from_id(*id_types, stmt->as.var.id)->kind !=
+    case STMT_VAR_DECL:
+        if (get_type_from_id(*id_types, stmt->as.var_decl.id)->kind !=
             TYPE_NONE) {
             fprintf(stderr, "ERROR: Variable " SV_FMT " already defined\n",
-                    SV_ARG(stmt->as.var.id));
+                    SV_ARG(stmt->as.var_decl.id));
             exit(1);
         }
         IdType id_type = { };
-        id_type.id = stmt->as.var.id;
-        id_type.type = type_expr(program, &stmt->as.var.value, id_types);
-        if (stmt->as.var.type && stmt->as.var.type->kind != TYPE_NONE
-            && !types_match(id_type.type, stmt->as.var.type)) {
+        id_type.id = stmt->as.var_decl.id;
+        id_type.type =
+            type_expr(program, &stmt->as.var_decl.value, id_types);
+        if (stmt->as.var_decl.type
+            && stmt->as.var_decl.type->kind != TYPE_NONE
+            && !types_match(id_type.type, stmt->as.var_decl.type)) {
             assert(false);
         }
         da_push(id_types, id_type);
         break;
     case STMT_ASSIGN:
+        type_expr(program, &stmt->as.assign.target, id_types);
         type_expr(program, &stmt->as.assign.value, id_types);
         break;
     case STMT_IFTE:

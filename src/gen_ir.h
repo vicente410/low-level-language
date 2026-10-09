@@ -25,9 +25,11 @@ typedef struct {
 
 typedef enum {
     IR_LABEL,
+    IR_MVP,
     IR_MOV,
     IR_RET,
     IR_REF,
+    IR_DEREF,
     IR_ADD,
     IR_SUB,
     IR_MUL,

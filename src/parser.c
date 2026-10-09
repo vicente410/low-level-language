@@ -99,23 +99,27 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
             sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
         }
         break;
-    case STMT_VAR:{
-            sb_appendf(&sb, "VAR " SV_FMT "\n", SV_ARG(stmt.as.var.id));
-            if (stmt.as.var.type) {
-                String_View type_sv = type_to_sv(stmt.as.var.type, indent);
+    case STMT_VAR_DECL:{
+            sb_appendf(&sb, "VAR " SV_FMT "\n",
+                       SV_ARG(stmt.as.var_decl.id));
+            if (stmt.as.var_decl.type) {
+                String_View type_sv =
+                    type_to_sv(stmt.as.var_decl.type, indent);
                 sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
             }
             String_View expr_sv =
-                expr_to_sv(stmt.as.var.value, indent + 1);
+                expr_to_sv(stmt.as.var_decl.value, indent + 1);
             sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
         }
         break;
     case STMT_ASSIGN:{
-            sb_appendf(&sb, "ASSIGN " SV_FMT "\n",
-                       SV_ARG(stmt.as.assign.id));
-            String_View expr_sv =
+            String_View target_sv =
+                expr_to_sv(stmt.as.assign.target, indent + 1);
+            String_View value_sv =
                 expr_to_sv(stmt.as.assign.value, indent + 1);
-            sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
+            sb_appendf(&sb, "ASSIGN\n");
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(target_sv));
+            sb_appendf(&sb, SV_FMT, SV_ARG(value_sv));
         }
         break;
     case STMT_IFTE:{
@@ -321,9 +325,14 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expect_token(lexer, TOKEN_CLOSE_PAREN);
             break;
         case TOKEN_OP:
-            expr->kind = EXPR_UNOP;
-            expr->as.unop.op = token.as.op;
-            expr->as.unop.expr = parse_expr(lexer, 0);
+            if (sv_eq_cstr(token.as.op, "*")) {
+                expr->kind = EXPR_ID;
+                expr->as.id = token.as.id;
+            } else {
+                expr->kind = EXPR_UNOP;
+                expr->as.unop.op = token.as.op;
+                expr->as.unop.expr = parse_expr(lexer, 0);
+            }
             break;
         default:
             diagnostic_error(token.pos, "invalid expression");
@@ -349,28 +358,31 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
 
 Stmt parse_stmt(Lexer *lexer) {
     Stmt stmt = { };
-    Token token = next_token(lexer);
+    Token token = peek_token(lexer);
 
     switch (token.kind) {
     case TOKEN_RET:
+        next_token(lexer);
         stmt.kind = STMT_RET;
         stmt.as.ret = *parse_expr(lexer, 0);
         break;
     case TOKEN_VAR:
-        stmt.kind = STMT_VAR;
+        next_token(lexer);
+        stmt.kind = STMT_VAR_DECL;
 
         token = next_token(lexer);
         assert(token.kind == TOKEN_ID);
-        stmt.as.var.id = token.as.id;
+        stmt.as.var_decl.id = token.as.id;
 
         if (accept_token(lexer, TOKEN_COLON)) {
-            stmt.as.var.type = parse_type(lexer);
+            stmt.as.var_decl.type = parse_type(lexer);
         }
         expect_token(lexer, TOKEN_EQUAL);
 
-        stmt.as.var.value = *parse_expr(lexer, 0);
+        stmt.as.var_decl.value = *parse_expr(lexer, 0);
         break;
     case TOKEN_IF:
+        next_token(lexer);
         stmt.kind = STMT_IFTE;
         stmt.as.ifte.cond = *parse_expr(lexer, 0);
 
@@ -388,6 +400,7 @@ Stmt parse_stmt(Lexer *lexer) {
 
         break;
     case TOKEN_WHILE:
+        next_token(lexer);
         stmt.kind = STMT_WHILE;
         stmt.as.while_stmt.cond = *parse_expr(lexer, 0);
 
@@ -398,28 +411,14 @@ Stmt parse_stmt(Lexer *lexer) {
 
         break;
     case TOKEN_ID:
-        if (accept_token(lexer, TOKEN_OPEN_PAREN)) {
+        Expr * expr = parse_expr(lexer, 0);
+        if (expr->kind == EXPR_CALL) {
             stmt.kind = STMT_CALL;
-            stmt.as.call.id = token.as.id;
-            while (1) {
-                if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
-                    break;
-                }
-
-                da_push(&stmt.as.call, *parse_expr(lexer, 0));
-
-                if (accept_token(lexer, TOKEN_COMMA)) {
-                    continue;
-                } else if (peek_token(lexer).kind != TOKEN_CLOSE_PAREN) {
-                    assert(false);
-                }
-            }
+            stmt.as.call = expr->as.call;
         } else {
             stmt.kind = STMT_ASSIGN;
-            stmt.as.assign.id = token.as.id;
-
+            stmt.as.assign.target = *expr;
             expect_token(lexer, TOKEN_EQUAL);
-
             stmt.as.assign.value = *parse_expr(lexer, 0);
         }
         break;

@@ -43,11 +43,19 @@ String_View ir_fn_to_sv(IrFn ir) {
             sb_appendf(&sb, "    mov " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(sv_op2));
             break;
+        case IR_MVP:
+            sb_appendf(&sb, "    mvp " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2));
+            break;
         case IR_RET:
             sb_appendf(&sb, "    ret " SV_FMT "\n", SV_ARG(sv_op1));
             break;
         case IR_REF:
             sb_appendf(&sb, "    ref " SV_FMT ", " SV_FMT "\n",
+                       SV_ARG(sv_op1), SV_ARG(sv_op2));
+            break;
+        case IR_DEREF:
+            sb_appendf(&sb, "    deref " SV_FMT ", " SV_FMT "\n",
                        SV_ARG(sv_op1), SV_ARG(sv_op2));
             break;
         case IR_ADD:
@@ -148,6 +156,20 @@ size_t get_type_size(Type *type) {
     }
 }
 
+void set_ir_arg_from_expr_id(IrArg *ir_arg, Expr *expr) {
+    assert(expr->kind == EXPR_ID);
+
+    if (expr->param_idx == 0) {
+        ir_arg->kind = IR_REG;
+        ir_arg->as.reg = expr->as.id;
+    } else {
+        ir_arg->kind = IR_ARG;
+        ir_arg->as.arg = expr->param_idx;
+    }
+
+    ir_arg->size = get_type_size(expr->type);
+}
+
 IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
     static size_t reg_num = 0;
 
@@ -175,15 +197,7 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
         }
     case EXPR_ID:{
             IrArg ir_arg = { };
-            if (expr.param_idx == 0) {
-                ir_arg.size = get_type_size(expr.type);
-                ir_arg.kind = IR_REG;
-                ir_arg.as.reg = expr.as.id;
-            } else {
-                ir_arg.size = get_type_size(expr.type);
-                ir_arg.kind = IR_ARG;
-                ir_arg.as.arg = expr.param_idx;
-            }
+            set_ir_arg_from_expr_id(&ir_arg, &expr);
             return ir_arg;
         }
     case EXPR_UNOP:{
@@ -216,8 +230,17 @@ IrArg gen_ir_expr(Expr expr, IrFn *ir_fn) {
             inst.op1.kind = IR_REG;
             inst.op1.as.reg = sv_from_sb(sb);
             inst.op1.size = get_type_size(expr.type);
-
             inst.op2 = gen_ir_expr(*expr.as.binop.lhs, ir_fn);
+
+            if (sv_eq_cstr(expr.as.binop.op, ".") &&
+                expr.as.binop.lhs->kind == EXPR_ID &&
+                expr.as.binop.rhs->kind == EXPR_ID &&
+                sv_eq_cstr(expr.as.binop.rhs->as.id, "*")) {
+                inst.kind = IR_DEREF;
+                da_push(ir_fn, inst);
+                return inst.op1;
+            }
+
             inst.op3 = gen_ir_expr(*expr.as.binop.rhs, ir_fn);
 
             if (sv_eq_cstr(expr.as.binop.op, "+")) {
@@ -291,18 +314,29 @@ void gen_ir_stmt(Stmt stmt, IrFn *ir_fn) {
         inst.kind = IR_RET;
         inst.op1 = gen_ir_expr(stmt.as.ret, ir_fn);
         break;
-    case STMT_VAR:
+    case STMT_VAR_DECL:
         inst.kind = IR_MOV;
         inst.op1.kind = IR_REG;
-        inst.op1.as.reg = stmt.as.var.id;
-        inst.op1.size = get_type_size(stmt.as.var.value.type);
-        inst.op2 = gen_ir_expr(stmt.as.var.value, ir_fn);
+        inst.op1.as.reg = stmt.as.var_decl.id;
+        inst.op1.size = get_type_size(stmt.as.var_decl.value.type);
+        inst.op2 = gen_ir_expr(stmt.as.var_decl.value, ir_fn);
         break;
     case STMT_ASSIGN:
-        inst.kind = IR_MOV;
         inst.op1.kind = IR_REG;
-        inst.op1.as.reg = stmt.as.assign.id;
-        inst.op1.size = get_type_size(stmt.as.assign.value.type);
+        Expr target = stmt.as.assign.target;
+        if (target.kind == EXPR_ID) {
+            inst.kind = IR_MOV;
+            set_ir_arg_from_expr_id(&inst.op1, &target);
+        } else if (target.kind == EXPR_BINOP &&
+                   sv_eq_cstr(target.as.binop.op, ".") &&
+                   target.as.binop.lhs->kind == EXPR_ID &&
+                   target.as.binop.rhs->kind == EXPR_ID &&
+                   sv_eq_cstr(target.as.binop.rhs->as.id, "*")) {
+            inst.kind = IR_MVP;
+            set_ir_arg_from_expr_id(&inst.op1, target.as.binop.lhs);
+        } else {
+            assert(false);
+        }
         inst.op2 = gen_ir_expr(stmt.as.assign.value, ir_fn);
         break;
     case STMT_IFTE:{

@@ -73,10 +73,10 @@ typedef struct {
     String_View id;
     Type *type;
     Expr value;
-} Var;
+} VarDecl;
 
 typedef struct {
-    String_View id;
+    Expr target;
     Expr value;
 } Assign;
 
@@ -93,7 +93,7 @@ typedef struct {
 
 typedef enum {
     STMT_RET,
-    STMT_VAR,
+    STMT_VAR_DECL,
     STMT_ASSIGN,
     STMT_IFTE,
     STMT_WHILE,
@@ -104,7 +104,7 @@ typedef struct Stmt {
     StmtKind kind;
     union {
         Expr ret;
-        Var var;
+        VarDecl var_decl;
         Assign assign;
         Ifte ifte;
         While while_stmt;

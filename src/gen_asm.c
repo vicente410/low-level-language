@@ -38,8 +38,10 @@ size_t get_num_ops(IrInst inst) {
     case IR_RET:
         return 1;
     case IR_REF:
+    case IR_DEREF:
     case IR_NOT:
     case IR_MOV:
+    case IR_MVP:
         return 2;
     case IR_ADD:
     case IR_SUB:
@@ -201,6 +203,15 @@ void compile_fn(String_Builder *sb, String_Builder *data, IrFn fn) {
                        get_reg_offset(&offsets, inst.op1.as.reg),
                        get_rax_name(inst.op2.size));
             break;
+        case IR_MVP:
+            assert(inst.op1.size == 8);
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, data, &offsets, inst.op1);
+            sb_appendf(sb, "\n    mov %s, ", get_rdx_name(inst.op2.size));
+            append_arg(sb, data, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov [rax], %s\n",
+                       get_rdx_name(inst.op2.size));
+            break;
         case IR_RET:
             sb_appendf(sb, "    mov %s, ", get_rax_name(inst.op1.size));
             append_arg(sb, data, &offsets, inst.op1);
@@ -212,6 +223,16 @@ void compile_fn(String_Builder *sb, String_Builder *data, IrFn fn) {
             append_arg(sb, data, &offsets, inst.op2);
             sb_appendf(sb, "\n    mov [rbp - %zu], rax\n",
                        get_reg_offset(&offsets, inst.op1.as.reg));
+            break;
+        case IR_DEREF:
+            assert(inst.op2.size == 8);
+            sb_appendf(sb, "    mov rax, ");
+            append_arg(sb, data, &offsets, inst.op2);
+            sb_appendf(sb, "\n    mov %s, [rax]",
+                       get_rax_name(inst.op1.size));
+            sb_appendf(sb, "\n    mov [rbp - %zu], %s\n",
+                       get_reg_offset(&offsets, inst.op1.as.reg),
+                       get_rax_name(inst.op1.size));
             break;
         case IR_ADD:
             assert(inst.op1.size == inst.op2.size
