@@ -127,8 +127,8 @@ String_View ir_fn_to_sv(IrFn ir) {
     return sv_from_sb(sb);
 }
 
-size_t get_type_size(Type type) {
-    switch (type.kind) {
+size_t get_type_size(Type *type) {
+    switch (type->kind) {
     case TYPE_NONE:
         assert(false);
     case TYPE_BOOL:

@@ -1,12 +1,12 @@
 #include "parser.h"
 
-String_View type_to_sv(Type type, size_t indent) {
+String_View type_to_sv(Type *type, size_t indent) {
     String_Builder sb = { };
 
     for (size_t i = 0; i < indent; i++)
         sb_appendf(&sb, "    ");
 
-    switch (type.kind) {
+    switch (type->kind) {
     case TYPE_NONE:
         sb_appendf(&sb, "NONE");
         break;
@@ -21,7 +21,7 @@ String_View type_to_sv(Type type, size_t indent) {
         break;
     case TYPE_PTR:
         sb_appendf(&sb, "PTR\n");
-        String_View type_sv = type_to_sv(*type.ptr, indent + 1);
+        String_View type_sv = type_to_sv(type->ptr, indent + 1);
         sb_appendf(&sb, SV_FMT, SV_ARG(type_sv));
         break;
     }
@@ -359,7 +359,7 @@ Stmt parse_stmt(Lexer *lexer) {
         stmt.as.var.id = token.as.id;
 
         if (accept_token(lexer, TOKEN_COLON)) {
-            stmt.as.var.type = *parse_type(lexer);
+            stmt.as.var.type = parse_type(lexer);
         }
         expect_token(lexer, TOKEN_EQUAL);
 
@@ -451,7 +451,7 @@ Decl parse_decl(Lexer *lexer) {
             arg.id = token.as.id;
 
             expect_token(lexer, TOKEN_COLON);
-            arg.type = *parse_type(lexer);
+            arg.type = parse_type(lexer);
 
             da_push(&decl.as.fn.args, arg);
 
@@ -463,7 +463,7 @@ Decl parse_decl(Lexer *lexer) {
         }
 
         if (accept_token(lexer, TOKEN_ARROW)) {
-            decl.as.fn.ret_type = *parse_type(lexer);
+            decl.as.fn.ret_type = parse_type(lexer);
         }
 
         expect_token(lexer, TOKEN_OPEN_CURLY);

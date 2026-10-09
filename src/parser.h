@@ -47,7 +47,7 @@ typedef struct {
 } Call;
 
 typedef struct Expr {
-    Type type;
+    Type *type;
     ExprKind kind;
     size_t param_idx;
     union {
@@ -71,7 +71,7 @@ typedef struct {
 
 typedef struct {
     String_View id;
-    Type type;
+    Type *type;
     Expr value;
 } Var;
 
@@ -114,7 +114,7 @@ typedef struct Stmt {
 
 typedef struct {
     String_View id;
-    Type type;
+    Type *type;
 } Arg;
 
 typedef struct {
@@ -126,7 +126,7 @@ typedef struct {
 typedef struct {
     String_View id;
     Args args;
-    Type ret_type;
+    Type *ret_type;
     Stmts body;
 } AstFn;
 
