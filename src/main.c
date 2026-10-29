@@ -35,8 +35,17 @@ int main(int argc, char **argv) {
     diagnostic_add_file(sv_from_cstr(program_name), sv_from_sb(sb));
 
     AstProgram ast = parse_program(&lexer);
-    type_program(&ast);
     if (argc == 3 && strcmp(argv[2], "--ast") == 0) {
+        for (size_t i = 0; i < ast.count; i++) {
+            String_View ast_sv = decl_to_sv(ast.data[i], 0);
+            printf(SV_FMT "\n", SV_ARG(ast_sv));
+        }
+
+        return 0;
+    }
+
+    type_program(&ast);
+    if (argc == 3 && strcmp(argv[2], "--sem") == 0) {
         for (size_t i = 0; i < ast.count; i++) {
             String_View ast_sv = decl_to_sv(ast.data[i], 0);
             printf(SV_FMT "\n", SV_ARG(ast_sv));

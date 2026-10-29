@@ -11,11 +11,13 @@ typedef enum {
     TYPE_U8,
     TYPE_S64,
     TYPE_PTR,
+    TYPE_ID,
 } TypeKind;
 
 typedef struct Type {
     TypeKind kind;
     struct Type *ptr;
+    String_View id;
 } Type;
 
 typedef enum {
@@ -130,14 +132,32 @@ typedef struct {
     Stmts body;
 } AstFn;
 
+typedef struct {
+    String_View name;
+    Type *type;
+} AstStructField;
+
+typedef struct {
+    AstStructField *data;
+    size_t count;
+    size_t capacity;
+} AstStructFields;
+
+typedef struct {
+    String_View name;
+    AstStructFields fields;
+} AstStruct;
+
 typedef enum {
-    DECL_FN
+    DECL_FN,
+    DECL_STRUCT,
 } DeclKind;
 
 typedef struct {
     DeclKind kind;
     union {
         AstFn fn;
+        AstStruct ast_struct;
     } as;
 } Decl;
 

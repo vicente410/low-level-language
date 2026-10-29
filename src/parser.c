@@ -19,10 +19,16 @@ String_View type_to_sv(Type *type, size_t indent) {
     case TYPE_S64:
         sb_appendf(&sb, "S64");
         break;
-    case TYPE_PTR:
-        sb_appendf(&sb, "PTR\n");
-        String_View type_sv = type_to_sv(type->ptr, indent + 1);
-        sb_appendf(&sb, SV_FMT, SV_ARG(type_sv));
+    case TYPE_PTR:{
+            sb_appendf(&sb, "PTR\n");
+            String_View type_sv = type_to_sv(type->ptr, indent + 1);
+            sb_appendf(&sb, SV_FMT, SV_ARG(type_sv));
+        }
+        break;
+    case TYPE_ID:{
+            String_View type_sv = type->id;
+            sb_appendf(&sb, SV_FMT, SV_ARG(type_sv));
+        }
         break;
     }
 
@@ -222,6 +228,18 @@ String_View decl_to_sv(Decl decl, size_t indent) {
             sb_appendf(&sb, SV_FMT "\n", SV_ARG(stmt_sv));
         }
         break;
+    case DECL_STRUCT:
+        sb_appendf(&sb, "STRUCT " SV_FMT "\n",
+                   SV_ARG(decl.as.ast_struct.name));
+        for (size_t i = 0; i < decl.as.ast_struct.fields.count; i++) {
+            sb_appendf(&sb, SV_FMT "\n",
+                       SV_ARG(decl.as.ast_struct.fields.data[i].name));
+            String_View type_sv =
+                type_to_sv(decl.as.ast_struct.fields.data[i].type,
+                           indent + 1);
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
+        }
+        break;
     }
 
     return sv_from_sb(sb);
@@ -239,7 +257,8 @@ Type *parse_type(Lexer *lexer) {
         } else if (sv_eq_cstr(token.as.id, "bool")) {
             type->kind = TYPE_BOOL;
         } else {
-            assert(false);
+            type->kind = TYPE_ID;
+            type->id = token.as.id;
         }
     } else if (token.kind == TOKEN_OP && sv_eq_cstr(token.as.op, "*")) {
         type->kind = TYPE_PTR;
@@ -376,10 +395,15 @@ Stmt parse_stmt(Lexer *lexer) {
 
         if (accept_token(lexer, TOKEN_COLON)) {
             stmt.as.var_decl.type = parse_type(lexer);
-        }
-        expect_token(lexer, TOKEN_EQUAL);
 
-        stmt.as.var_decl.value = *parse_expr(lexer, 0);
+            if (accept_token(lexer, TOKEN_EQUAL)) {
+                stmt.as.var_decl.value = *parse_expr(lexer, 0);
+            }
+        } else {
+            expect_token(lexer, TOKEN_EQUAL);
+            stmt.as.var_decl.value = *parse_expr(lexer, 0);
+        }
+
         break;
     case TOKEN_IF:
         next_token(lexer);
@@ -474,6 +498,27 @@ Decl parse_decl(Lexer *lexer) {
 
         while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
             da_push(&decl.as.fn.body, parse_stmt(lexer));
+        }
+        break;
+    case TOKEN_STRUCT:
+        decl.kind = DECL_STRUCT;
+
+        token = next_token(lexer);
+        assert(token.kind == TOKEN_ID);
+        decl.as.ast_struct.name = token.as.id;
+
+        expect_token(lexer, TOKEN_OPEN_CURLY);
+
+        while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
+            AstStructField field = { };
+
+            token = next_token(lexer);
+            assert(token.kind == TOKEN_ID);
+            field.name = token.as.id;
+            expect_token(lexer, TOKEN_COLON);
+            field.type = parse_type(lexer);
+
+            da_push(&decl.as.ast_struct.fields, field);
         }
         break;
     default:
