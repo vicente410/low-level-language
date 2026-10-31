@@ -3,9 +3,9 @@
 #include "diagnostics.h"
 #include "lexer.h"
 #include "parser.h"
-#include "semantic.h"
-#include "gen_ir.h"
-#include "gen_asm.h"
+//#include "semantic.h"
+//#include "gen_ir.h"
+//#include "gen_asm.h"
 #define UTILS_IMPLEMENTATION
 #include "utils.h"
 #include "unistd.h"
@@ -34,16 +34,16 @@ int main(int argc, char **argv) {
     sb_read_file(&sb, program_name);
     diagnostic_add_file(sv_from_cstr(program_name), sv_from_sb(sb));
 
-    AstProgram ast = parse_program(&lexer);
+    Exprs ast = parse_program(&lexer);
     if (argc == 3 && strcmp(argv[2], "--ast") == 0) {
         for (size_t i = 0; i < ast.count; i++) {
-            String_View ast_sv = decl_to_sv(ast.data[i], 0);
+            String_View ast_sv = expr_to_sv(ast.data[i], 0);
             printf(SV_FMT "\n", SV_ARG(ast_sv));
         }
 
         return 0;
     }
-
+#ifdef FALSE
     type_program(&ast);
     if (argc == 3 && strcmp(argv[2], "--sem") == 0) {
         for (size_t i = 0; i < ast.count; i++) {
@@ -95,6 +95,7 @@ int main(int argc, char **argv) {
     }
 
     remove(asm_name);
+#endif
 
     return 0;
 }

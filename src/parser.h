@@ -5,6 +5,7 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#ifdef FALSE
 typedef enum {
     TYPE_NONE,
     TYPE_BOOL,
@@ -19,6 +20,15 @@ typedef struct Type {
     struct Type *ptr;
     String_View id;
 } Type;
+#endif
+
+struct Expr;
+
+typedef struct {
+    struct Expr **data;
+    size_t count;
+    size_t capacity;
+} Exprs;
 
 typedef enum {
     EXPR_BOOL_LIT,
@@ -28,6 +38,10 @@ typedef enum {
     EXPR_UNOP,
     EXPR_BINOP,
     EXPR_CALL,
+    EXPR_CONST_DECL,
+    EXPR_VAR_DECL,
+    EXPR_BLOCK,
+    EXPR_FN,
 } ExprKind;
 
 typedef struct {
@@ -43,13 +57,22 @@ typedef struct {
 
 typedef struct {
     String_View id;
-    struct Expr *data;
-    size_t count;
-    size_t capacity;
+    Exprs args;
 } Call;
 
+typedef struct {
+    String_View id;
+    struct Expr *type;
+    struct Expr *value;
+} Decl;
+
+typedef struct {
+    Exprs args;
+    struct Expr *value;
+} Fn;
+
 typedef struct Expr {
-    Type *type;
+    //Type *type;
     ExprKind kind;
     size_t param_idx;
     union {
@@ -60,9 +83,13 @@ typedef struct Expr {
         UnOp unop;
         BinOp binop;
         Call call;
+        Decl decl;
+        Exprs block;
+        Fn fn;
     } as;
 } Expr;
 
+#ifdef FALSE
 struct Stmt;
 
 typedef struct {
@@ -166,10 +193,11 @@ typedef struct {
     size_t count;
     size_t capacity;
 } AstProgram;
+#endif
 
-String_View expr_to_sv(Expr expr, size_t indent);
-String_View stmt_to_sv(Stmt stmt, size_t indent);
-String_View decl_to_sv(Decl decl, size_t indent);
-AstProgram parse_program(Lexer * lexer);
+String_View expr_to_sv(Expr * expr, size_t indent);
+//String_View stmt_to_sv(Stmt stmt, size_t indent);
+//String_View decl_to_sv(Decl decl, size_t indent);
+Exprs parse_program(Lexer * lexer);
 
 #endif                          // PARSER_H
