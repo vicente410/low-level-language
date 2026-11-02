@@ -6,4 +6,14 @@ greet :: fn(name: String) {
     print("Hello %!", name)
     print("How are you doing?")
     answer := input()
+    if a > 2 print("Hello")
+    else print("Bye")
+    
+    while a < 10 {
+        print("Hello")
+        a += 1 + 3
+    }
 }
+
+a := 4
+a += 3

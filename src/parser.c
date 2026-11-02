@@ -143,6 +143,47 @@ String_View expr_to_sv(Expr *expr, size_t indent) {
             }
         }
         break;
+    case EXPR_IFTE:{
+            sb_appendf(&sb, "IF\n");
+            String_View cond_sv =
+                expr_to_sv(expr->as.ifte.cond, indent + 1);
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(cond_sv));
+
+            for (size_t i = 0; i < indent; i++)
+                sb_appendf(&sb, "    ");
+
+            sb_appendf(&sb, "THEN\n");
+            String_View then_sv =
+                expr_to_sv(expr->as.ifte.then_body, indent + 1);
+            sb_appendf(&sb, SV_FMT, SV_ARG(then_sv));
+
+            if (expr->as.ifte.else_body) {
+                sb_appendf(&sb, "\n");
+                for (size_t i = 0; i < indent; i++)
+                    sb_appendf(&sb, "    ");
+
+                sb_appendf(&sb, "ELSE\n");
+                String_View else_sv =
+                    expr_to_sv(expr->as.ifte.else_body, indent + 1);
+                sb_appendf(&sb, SV_FMT, SV_ARG(else_sv));
+            }
+        }
+        break;
+    case EXPR_WHILE:{
+            sb_appendf(&sb, "WHILE\n");
+            String_View cond_sv =
+                expr_to_sv(expr->as.whil.cond, indent + 1);
+            sb_appendf(&sb, SV_FMT "\n", SV_ARG(cond_sv));
+
+            for (size_t i = 0; i < indent; i++)
+                sb_appendf(&sb, "    ");
+
+            sb_appendf(&sb, "DO\n");
+            String_View body_sv =
+                expr_to_sv(expr->as.whil.body, indent + 1);
+            sb_appendf(&sb, SV_FMT, SV_ARG(body_sv));
+        }
+        break;
     case EXPR_FN:{
             sb_appendf(&sb, "FN\n");
 
@@ -157,107 +198,15 @@ String_View expr_to_sv(Expr *expr, size_t indent) {
             sb_appendf(&sb, SV_FMT, SV_ARG(value_sv));
         }
         break;
-    }
+    case EXPR_STRUCT:{
+            sb_appendf(&sb, "STRUCT\n");
 
-    return sv_from_sb(sb);
-}
-
-#ifdef FALSE
-String_View stmt_to_sv(Stmt stmt, size_t indent) {
-    String_Builder sb = { };
-
-    for (size_t i = 0; i < indent; i++)
-        sb_appendf(&sb, "    ");
-
-    switch (stmt.kind) {
-    case STMT_RET:{
-            sb_appendf(&sb, "RET\n");
-            String_View expr_sv = expr_to_sv(stmt.as.ret, indent + 1);
-            sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
-        }
-        break;
-    case STMT_VAR_DECL:{
-            sb_appendf(&sb, "VAR " SV_FMT "\n",
-                       SV_ARG(stmt.as.var_decl.id));
-            if (stmt.as.var_decl.type) {
-                String_View type_sv =
-                    type_to_sv(stmt.as.var_decl.type, indent);
-                sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
-            }
-            String_View expr_sv =
-                expr_to_sv(stmt.as.var_decl.value, indent + 1);
-            sb_appendf(&sb, SV_FMT, SV_ARG(expr_sv));
-        }
-        break;
-    case STMT_ASSIGN:{
-            String_View target_sv =
-                expr_to_sv(stmt.as.assign.target, indent + 1);
-            String_View value_sv =
-                expr_to_sv(stmt.as.assign.value, indent + 1);
-            sb_appendf(&sb, "ASSIGN\n");
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(target_sv));
-            sb_appendf(&sb, SV_FMT, SV_ARG(value_sv));
-        }
-        break;
-    case STMT_IFTE:{
-            sb_appendf(&sb, "IF\n");
-            String_View expr_sv =
-                expr_to_sv(stmt.as.ifte.cond, indent + 1);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(expr_sv));
-
-            for (size_t i = 0; i < indent; i++)
-                sb_appendf(&sb, "    ");
-            sb_appendf(&sb, "THEN\n");
-            for (size_t i = 0; i < stmt.as.ifte.then_body.count; i++) {
-                String_View stmt_sv =
-                    stmt_to_sv(stmt.as.ifte.then_body.data[i], indent + 1);
-                sb_appendf(&sb, SV_FMT, SV_ARG(stmt_sv));
-                if (i < stmt.as.ifte.then_body.count - 1)
-                    sb_appendf(&sb, "\n");
-            }
-
-            if (stmt.as.ifte.else_body.count > 0) {
-                sb_appendf(&sb, "\n");
-                for (size_t i = 0; i < indent; i++)
-                    sb_appendf(&sb, "    ");
-                sb_appendf(&sb, "ELSE\n");
-                for (size_t i = 0; i < stmt.as.ifte.else_body.count; i++) {
-                    String_View stmt_sv =
-                        stmt_to_sv(stmt.as.ifte.else_body.data[i],
-                                   indent + 1);
-                    sb_appendf(&sb, SV_FMT, SV_ARG(stmt_sv));
-                    if (i < stmt.as.ifte.else_body.count - 1)
-                        sb_appendf(&sb, "\n");
-                }
-            }
-        }
-        break;
-    case STMT_WHILE:{
-            sb_appendf(&sb, "WHILE\n");
-            String_View expr_sv =
-                expr_to_sv(stmt.as.while_stmt.cond, indent + 1);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(expr_sv));
-
-            for (size_t i = 0; i < indent; i++)
-                sb_appendf(&sb, "    ");
-            sb_appendf(&sb, "DO\n");
-            for (size_t i = 0; i < stmt.as.while_stmt.body.count; i++) {
-                String_View stmt_sv =
-                    stmt_to_sv(stmt.as.while_stmt.body.data[i],
-                               indent + 1);
-                sb_appendf(&sb, SV_FMT, SV_ARG(stmt_sv));
-                if (i < stmt.as.while_stmt.body.count - 1)
-                    sb_appendf(&sb, "\n");
-            }
-        }
-        break;
-    case STMT_CALL:{
-            sb_appendf(&sb, "CALL(" SV_FMT ")\n", SV_ARG(stmt.as.call.id));
-            for (size_t i = 0; i < stmt.as.call.count; i++) {
+            for (size_t i = 0; i < expr->as.struct_type.fields.count; i++) {
                 String_View arg_sv =
-                    expr_to_sv(stmt.as.call.data[i], indent + 1);
+                    expr_to_sv(expr->as.struct_type.fields.data[i],
+                               indent + 1);
                 sb_appendf(&sb, SV_FMT, SV_ARG(arg_sv));
-                if (i < stmt.as.call.count - 1)
+                if (i < expr->as.struct_type.fields.count - 1)
                     sb_appendf(&sb, "\n");
             }
         }
@@ -266,98 +215,29 @@ String_View stmt_to_sv(Stmt stmt, size_t indent) {
 
     return sv_from_sb(sb);
 }
-
-String_View decl_to_sv(Decl decl, size_t indent) {
-    String_Builder sb = { };
-
-    for (size_t i = 0; i < indent; i++)
-        sb_appendf(&sb, "    ");
-
-    switch (decl.kind) {
-    case DECL_FN:
-        sb_appendf(&sb, "FN " SV_FMT "\n", SV_ARG(decl.as.fn.id));
-
-        for (size_t i = 0; i < decl.as.fn.args.count; i++) {
-            String_View type_sv =
-                type_to_sv(decl.as.fn.args.data[i].type, indent + 1);
-            sb_appendf(&sb, SV_FMT "\n",
-                       SV_ARG(decl.as.fn.args.data[i].id));
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
-        }
-
-        if (decl.as.fn.ret_type) {
-            sb_appendf(&sb, "RET\n");
-            String_View type_sv =
-                type_to_sv(decl.as.fn.ret_type, indent + 1);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
-        }
-
-        sb_appendf(&sb, "DO\n");
-        for (size_t i = 0; i < decl.as.fn.body.count; i++) {
-            String_View stmt_sv =
-                stmt_to_sv(decl.as.fn.body.data[i], indent + 1);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(stmt_sv));
-        }
-        break;
-    case DECL_STRUCT:
-        sb_appendf(&sb, "STRUCT " SV_FMT "\n",
-                   SV_ARG(decl.as.ast_struct.name));
-        for (size_t i = 0; i < decl.as.ast_struct.fields.count; i++) {
-            sb_appendf(&sb, SV_FMT "\n",
-                       SV_ARG(decl.as.ast_struct.fields.data[i].name));
-            String_View type_sv =
-                type_to_sv(decl.as.ast_struct.fields.data[i].type,
-                           indent + 1);
-            sb_appendf(&sb, SV_FMT "\n", SV_ARG(type_sv));
-        }
-        break;
-    }
-
-    return sv_from_sb(sb);
-}
-
-Type *parse_type(Lexer *lexer) {
-    Type *type = calloc(1, sizeof(Type));
-    Token token = next_token(lexer);
-
-    if (token.kind == TOKEN_ID) {
-        if (sv_eq_cstr(token.as.id, "s64")) {
-            type->kind = TYPE_S64;
-        } else if (sv_eq_cstr(token.as.id, "u8")) {
-            type->kind = TYPE_U8;
-        } else if (sv_eq_cstr(token.as.id, "bool")) {
-            type->kind = TYPE_BOOL;
-        } else {
-            type->kind = TYPE_ID;
-            type->id = token.as.id;
-        }
-    } else if (token.kind == TOKEN_OP && sv_eq_cstr(token.as.op, "*")) {
-        type->kind = TYPE_PTR;
-        type->ptr = parse_type(lexer);
-    } else {
-        assert(false);
-    }
-
-    return type;
-}
-#endif
 
 size_t get_op_precedence(String_View op) {
-    if (sv_eq_cstr(op, "&&") || sv_eq_cstr(op, "||")) {
+    if (sv_eq_cstr(op, "=") ||
+        sv_eq_cstr(op, "+=") ||
+        sv_eq_cstr(op, "-=") ||
+        sv_eq_cstr(op, "*=") ||
+        sv_eq_cstr(op, "/=") || sv_eq_cstr(op, "%=")) {
         return 0;
+    } else if (sv_eq_cstr(op, "&&") || sv_eq_cstr(op, "||")) {
+        return 1;
     } else if (sv_eq_cstr(op, "<") ||
                sv_eq_cstr(op, "<=") ||
                sv_eq_cstr(op, ">") ||
                sv_eq_cstr(op, ">=") ||
                sv_eq_cstr(op, "==") || sv_eq_cstr(op, "!=")) {
-        return 1;
-    } else if (sv_eq_cstr(op, "+") || sv_eq_cstr(op, "-")) {
         return 2;
+    } else if (sv_eq_cstr(op, "+") || sv_eq_cstr(op, "-")) {
+        return 3;
     } else if (sv_eq_cstr(op, "*") ||
                sv_eq_cstr(op, "/") || sv_eq_cstr(op, "%")) {
-        return 3;
-    } else if (sv_eq_cstr(op, ".")) {
         return 4;
+    } else if (sv_eq_cstr(op, ".")) {
+        return 5;
     } else {
         assert(false);
     }
@@ -366,7 +246,7 @@ size_t get_op_precedence(String_View op) {
 Expr *parse_expr(Lexer *lexer, size_t precedence) {
     Expr *expr;
 
-    if (precedence >= 5) {
+    if (precedence >= 6) {
         Token token = next_token(lexer);
 
         expr = calloc(1, sizeof(Expr));
@@ -387,6 +267,20 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
         case TOKEN_STRING_LIT:
             expr->kind = EXPR_STR_LIT;
             expr->as.str_lit = token.as.string_lit;
+            break;
+        case TOKEN_IF:
+            expr->kind = EXPR_IFTE;
+            expr->as.ifte.cond = parse_expr(lexer, 0);
+            expr->as.ifte.then_body = parse_expr(lexer, 0);
+
+            if (accept_token(lexer, TOKEN_ELSE)) {
+                expr->as.ifte.else_body = parse_expr(lexer, 0);
+            }
+            break;
+        case TOKEN_WHILE:
+            expr->kind = EXPR_WHILE;
+            expr->as.whil.cond = parse_expr(lexer, 0);
+            expr->as.whil.body = parse_expr(lexer, 0);
             break;
         case TOKEN_FN:{
                 expr->kind = EXPR_FN;
@@ -424,9 +318,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
                         assert(false);
                     }
                 }
-            } else if (precedence == 5 && accept_token(lexer, TOKEN_COLON)) {
+            } else if (precedence == 6 && accept_token(lexer, TOKEN_COLON)) {
                 expr->as.decl.id = token.as.id;
-                if (accept_token(lexer, TOKEN_EQUAL)) {
+                token = peek_token(lexer);
+                if (token.kind == TOKEN_OP && sv_eq_cstr(token.as.op, "=")) {
+                    next_token(lexer);
                     expr->kind = EXPR_VAR_DECL;
                     expr->as.decl.value = parse_expr(lexer, 0);
                 } else if (accept_token(lexer, TOKEN_COLON)) {
@@ -434,8 +330,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
                     expr->as.decl.value = parse_expr(lexer, 0);
                 } else {
                     expr->kind = EXPR_CONST_DECL;
-                    expr->as.decl.type = parse_expr(lexer, 6);
-                    if (accept_token(lexer, TOKEN_EQUAL)) {
+                    expr->as.decl.type = parse_expr(lexer, precedence + 1);
+                    token = peek_token(lexer);
+                    if (token.kind == TOKEN_OP
+                        && sv_eq_cstr(token.as.op, "=")) {
+                        next_token(lexer);
                         expr->kind = EXPR_VAR_DECL;
                         expr->as.decl.value = parse_expr(lexer, 0);
                     } else if (accept_token(lexer, TOKEN_COLON)) {
@@ -451,6 +350,14 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expr->kind = EXPR_BLOCK;
             while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
                 da_push(&expr->as.block, parse_expr(lexer, 0));
+            }
+            break;
+        case TOKEN_STRUCT:
+            expr->kind = EXPR_STRUCT;
+            expect_token(lexer, TOKEN_OPEN_CURLY);
+            while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
+                da_push(&expr->as.struct_type.fields,
+                        parse_expr(lexer, 0));
             }
             break;
         case TOKEN_OP:
@@ -484,144 +391,6 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
 
     return expr;
 }
-
-#ifdef FALSE
-Stmt parse_stmt(Lexer *lexer) {
-    Stmt stmt = { };
-    Token token = peek_token(lexer);
-    switch (token.kind) {
-    case TOKEN_RET:
-        next_token(lexer);
-        stmt.kind = STMT_RET;
-        stmt.as.ret = *parse_expr(lexer, 0);
-        break;
-    case TOKEN_VAR:
-        next_token(lexer);
-        stmt.kind = STMT_VAR_DECL;
-        token = next_token(lexer);
-        assert(token.kind == TOKEN_ID);
-        stmt.as.var_decl.id = token.as.id;
-        if (accept_token(lexer, TOKEN_COLON)) {
-            stmt.as.var_decl.type = parse_type(lexer);
-            if (accept_token(lexer, TOKEN_EQUAL)) {
-                stmt.as.var_decl.value = *parse_expr(lexer, 0);
-            }
-        } else {
-            expect_token(lexer, TOKEN_EQUAL);
-            stmt.as.var_decl.value = *parse_expr(lexer, 0);
-        }
-
-        break;
-    case TOKEN_IF:
-        next_token(lexer);
-        stmt.kind = STMT_IFTE;
-        stmt.as.ifte.cond = *parse_expr(lexer, 0);
-        expect_token(lexer, TOKEN_OPEN_CURLY);
-        while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
-            da_push(&stmt.as.ifte.then_body, parse_stmt(lexer));
-        }
-
-        if (accept_token(lexer, TOKEN_ELSE)) {
-            expect_token(lexer, TOKEN_OPEN_CURLY);
-            while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
-                da_push(&stmt.as.ifte.else_body, parse_stmt(lexer));
-            }
-        }
-
-        break;
-    case TOKEN_WHILE:
-        next_token(lexer);
-        stmt.kind = STMT_WHILE;
-        stmt.as.while_stmt.cond = *parse_expr(lexer, 0);
-        expect_token(lexer, TOKEN_OPEN_CURLY);
-        while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
-            da_push(&stmt.as.while_stmt.body, parse_stmt(lexer));
-        }
-
-        break;
-    case TOKEN_ID:
-        Expr * expr = parse_expr(lexer, 0);
-        if (expr->kind == EXPR_CALL) {
-            stmt.kind = STMT_CALL;
-            stmt.as.call = expr->as.call;
-        } else {
-            stmt.kind = STMT_ASSIGN;
-            stmt.as.assign.target = *expr;
-            expect_token(lexer, TOKEN_EQUAL);
-            stmt.as.assign.value = *parse_expr(lexer, 0);
-        }
-        break;
-    default:
-        diagnostic_error(token.pos, "invalid statement");
-        diagnostic_print_all();
-        exit(1);
-    }
-
-    return stmt;
-}
-
-Decl parse_decl(Lexer *lexer) {
-    Decl decl = { };
-    Token token = next_token(lexer);
-    switch (token.kind) {
-    case TOKEN_FN:
-        decl.kind = DECL_FN;
-        token = next_token(lexer);
-        assert(token.kind == TOKEN_ID);
-        decl.as.fn.id = token.as.id;
-        expect_token(lexer, TOKEN_OPEN_PAREN);
-        while (1) {
-            if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
-                break;
-            }
-            Arg arg = { };
-            token = next_token(lexer);
-            assert(token.kind == TOKEN_ID);
-            arg.id = token.as.id;
-            expect_token(lexer, TOKEN_COLON);
-            arg.type = parse_type(lexer);
-            da_push(&decl.as.fn.args, arg);
-            if (accept_token(lexer, TOKEN_COMMA)) {
-                continue;
-            } else if (peek_token(lexer).kind != TOKEN_CLOSE_PAREN) {
-                assert(false);
-            }
-        }
-
-        if (accept_token(lexer, TOKEN_ARROW)) {
-            decl.as.fn.ret_type = parse_type(lexer);
-        }
-
-        expect_token(lexer, TOKEN_OPEN_CURLY);
-        while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
-            da_push(&decl.as.fn.body, parse_stmt(lexer));
-        }
-        break;
-    case TOKEN_STRUCT:
-        decl.kind = DECL_STRUCT;
-        token = next_token(lexer);
-        assert(token.kind == TOKEN_ID);
-        decl.as.ast_struct.name = token.as.id;
-        expect_token(lexer, TOKEN_OPEN_CURLY);
-        while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
-            AstStructField field = { };
-            token = next_token(lexer);
-            assert(token.kind == TOKEN_ID);
-            field.name = token.as.id;
-            expect_token(lexer, TOKEN_COLON);
-            field.type = parse_type(lexer);
-            da_push(&decl.as.ast_struct.fields, field);
-        }
-        break;
-    default:
-        diagnostic_error(token.pos, "invalid declaration");
-        diagnostic_print_all();
-        exit(1);
-    }
-
-    return decl;
-}
-#endif
 
 Exprs parse_program(Lexer *lexer) {
     Exprs program = { };

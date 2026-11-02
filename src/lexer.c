@@ -27,9 +27,6 @@ String_View token_to_sv(Token token) {
     case TOKEN_COLON:
         sb_appendf(&sb, "TOKEN_COLON");
         break;
-    case TOKEN_EQUAL:
-        sb_appendf(&sb, "TOKEN_EQUAL");
-        break;
     case TOKEN_COMMA:
         sb_appendf(&sb, "TOKEN_COMMA");
         break;
@@ -241,15 +238,6 @@ Token read_symbol(Lexer *lexer) {
     switch (ch) {
     case ':':
         token.kind = TOKEN_COLON;
-        break;
-    case '=':{
-            if (accept_char(lexer, '=')) {
-                token.kind = TOKEN_OP;
-                token.as.op = sv_from_cstr("==");
-            } else {
-                token.kind = TOKEN_EQUAL;
-            }
-        }
         break;
     case ',':
         token.kind = TOKEN_COMMA;

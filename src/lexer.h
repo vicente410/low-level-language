@@ -10,7 +10,6 @@ typedef enum {
     TOKEN_EOF,
     TOKEN_ID,
     TOKEN_COLON,
-    TOKEN_EQUAL,
     TOKEN_COMMA,
     TOKEN_OPEN_PAREN,
     TOKEN_CLOSE_PAREN,

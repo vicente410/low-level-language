@@ -5,23 +5,6 @@
 #ifndef PARSER_H
 #define PARSER_H
 
-#ifdef FALSE
-typedef enum {
-    TYPE_NONE,
-    TYPE_BOOL,
-    TYPE_U8,
-    TYPE_S64,
-    TYPE_PTR,
-    TYPE_ID,
-} TypeKind;
-
-typedef struct Type {
-    TypeKind kind;
-    struct Type *ptr;
-    String_View id;
-} Type;
-#endif
-
 struct Expr;
 
 typedef struct {
@@ -41,7 +24,10 @@ typedef enum {
     EXPR_CONST_DECL,
     EXPR_VAR_DECL,
     EXPR_BLOCK,
+    EXPR_IFTE,
+    EXPR_WHILE,
     EXPR_FN,
+    EXPR_STRUCT,
 } ExprKind;
 
 typedef struct {
@@ -67,9 +53,24 @@ typedef struct {
 } Decl;
 
 typedef struct {
+    struct Expr *cond;
+    struct Expr *then_body;
+    struct Expr *else_body;
+} Ifte;
+
+typedef struct {
+    struct Expr *cond;
+    struct Expr *body;
+} While;
+
+typedef struct {
     Exprs args;
     struct Expr *value;
 } Fn;
+
+typedef struct {
+    Exprs fields;
+} Struct;
 
 typedef struct Expr {
     //Type *type;
@@ -85,119 +86,14 @@ typedef struct Expr {
         Call call;
         Decl decl;
         Exprs block;
+        Ifte ifte;
+        While whil;
         Fn fn;
+        Struct struct_type;
     } as;
 } Expr;
 
-#ifdef FALSE
-struct Stmt;
-
-typedef struct {
-    struct Stmt *data;
-    size_t count;
-    size_t capacity;
-} Stmts;
-
-typedef struct {
-    String_View id;
-    Type *type;
-    Expr value;
-} VarDecl;
-
-typedef struct {
-    Expr target;
-    Expr value;
-} Assign;
-
-typedef struct {
-    Expr cond;
-    Stmts then_body;
-    Stmts else_body;
-} Ifte;
-
-typedef struct {
-    Expr cond;
-    Stmts body;
-} While;
-
-typedef enum {
-    STMT_RET,
-    STMT_VAR_DECL,
-    STMT_ASSIGN,
-    STMT_IFTE,
-    STMT_WHILE,
-    STMT_CALL,
-} StmtKind;
-
-typedef struct Stmt {
-    StmtKind kind;
-    union {
-        Expr ret;
-        VarDecl var_decl;
-        Assign assign;
-        Ifte ifte;
-        While while_stmt;
-        Call call;
-    } as;
-} Stmt;
-
-typedef struct {
-    String_View id;
-    Type *type;
-} Arg;
-
-typedef struct {
-    Arg *data;
-    size_t count;
-    size_t capacity;
-} Args;
-
-typedef struct {
-    String_View id;
-    Args args;
-    Type *ret_type;
-    Stmts body;
-} AstFn;
-
-typedef struct {
-    String_View name;
-    Type *type;
-} AstStructField;
-
-typedef struct {
-    AstStructField *data;
-    size_t count;
-    size_t capacity;
-} AstStructFields;
-
-typedef struct {
-    String_View name;
-    AstStructFields fields;
-} AstStruct;
-
-typedef enum {
-    DECL_FN,
-    DECL_STRUCT,
-} DeclKind;
-
-typedef struct {
-    DeclKind kind;
-    union {
-        AstFn fn;
-        AstStruct ast_struct;
-    } as;
-} Decl;
-
-typedef struct {
-    Decl *data;
-    size_t count;
-    size_t capacity;
-} AstProgram;
-#endif
-
 String_View expr_to_sv(Expr * expr, size_t indent);
-//String_View stmt_to_sv(Stmt stmt, size_t indent);
-//String_View decl_to_sv(Decl decl, size_t indent);
 Exprs parse_program(Lexer * lexer);
 
 #endif                          // PARSER_H
