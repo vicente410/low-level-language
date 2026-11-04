@@ -4,6 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
 
 // TODO: Implement parser combinators using String_View
 
@@ -60,6 +63,18 @@
 #define da_pop(da) (da)->data[assert((da)->count > 0), --(da)->count]
 #define da_foreach(x, da) for (typeof((da)->data[0]) *x = (da)->data; x < (da)->data + (da)->count; x++)
 
+// Command and Building
+typedef struct {
+    const char **data;
+    size_t count;
+    size_t capacity;
+} Cmd;
+
+#define cmd_append(cmd, ...) cmd_append_parts((cmd),\
+    sizeof((const char*[]){__VA_ARGS__})/sizeof(const char*), (const char*[]){__VA_ARGS__})
+int cmd_run(Cmd * cmd);
+bool is_older_file(const char *f1, const char *f2);
+
 // String Builder and View
 
 typedef struct {
@@ -115,6 +130,55 @@ String_View sv_trim_end(String_View sv);
 #endif                          // UTILS_H
 
 #ifdef UTILS_IMPLEMENTATION
+
+void cmd_append_parts(Cmd *cmd, size_t n, const char **args) {
+    for (size_t i = 0; i < n; i++) {
+        da_push(cmd, args[i]);
+    }
+}
+
+int cmd_run(Cmd *cmd) {
+    printf("[CMD] ");
+    for (size_t i = 0; i < cmd->count; i++) {
+        printf("%s", cmd->data[i]);
+        if (i < cmd->count - 1) {
+            printf(" ");
+        } else {
+            printf("\n");
+        }
+    }
+    da_push(cmd, NULL);
+
+    pid_t pid = fork();
+
+    switch (pid) {
+    case -1:
+        perror("fork");
+        exit(1);
+    case 0:
+        execvp(cmd->data[0], (char *const *) cmd->data);
+        perror("execvp");
+        exit(1);
+    default:
+        int status;
+        wait(&status);
+
+        if (WIFEXITED(status)) {
+            cmd->count = 0;
+            return WEXITSTATUS(status);
+        } else {
+            exit(1);
+        }
+    }
+}
+
+// TODO: add error checking
+bool is_older_file(const char *f1, const char *f2) {
+    struct stat attr1, attr2;
+    stat(f1, &attr1);
+    stat(f2, &attr2);
+    return attr1.st_mtime < attr2.st_mtime;
+}
 
 int isnotspace(int c) {
     return c != ' ' && c != '\t' && c != '\n';

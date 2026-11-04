@@ -1,75 +1,63 @@
-#include <stdio.h>
-#include <unistd.h>
-#include <time.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
+#define UTILS_IMPLEMENTATION
+#include "src/utils.h"
 
-int run_command(char *const cmd[]) {
-    pid_t pid = fork();
+int main(int argc, char **argv) {
+    Cmd cmd = { 0 };
 
-    switch (pid) {
-    case -1:
-        perror("fork");
-        exit(1);
-    case 0:
-        execvp(cmd[0], cmd);
-        perror("execvp");
-        exit(1);
-    default:
-        int status;
-        wait(&status);
-
-        if (WIFEXITED(status)) {
-            return WEXITSTATUS(status);
-        } else {
-            exit(1);
-        }
+    if (is_older_file("build", "build.c")) {
+        cmd_append(&cmd, "cc");
+        cmd_append(&cmd, "-o", "build");
+        cmd_append(&cmd, "build.c");
+        cmd_append(&cmd, "-Wall");
+        cmd_append(&cmd, "-Wextra");
+        if (cmd_run(&cmd) != 0) return 1;
+        execvp(argv[0], argv);
     }
-}
 
-void rebuild_build() {
-    struct stat c_attr, bin_attr;
-    stat("build.c", &c_attr);
-    stat("build", &bin_attr);
+    if (argc == 2 && (strcmp(argv[1], "--format") == 0)) {
+        cmd_append(&cmd, "indent");
+        cmd_append(&cmd, "-kr");
+        cmd_append(&cmd, "-nut");
+        cmd_append(&cmd, "-brf");
+        cmd_append(&cmd, "src/main.c", "src/utils.h",
+                   "src/diagnostics.c", "src/diagnostics.h",
+                   "src/lexer.c", "src/lexer.h",
+                   "src/parser.c", "src/parser.h",
+                   "src/semantic.c", "src/semantic.h",
+                   "src/gen_asm.c", "src/gen_asm.h",
+                   "src/gen_ir.c", "src/gen_ir.h");
+        if (cmd_run(&cmd) != 0) return 1;
+        
+        remove("src/main.c~");
+        remove("src/utils.h~");
+        remove("src/diagnostics.c~");
+        remove("src/diagnostics.h~");
+        remove("src/lexer.c~");
+        remove("src/lexer.h~");
+        remove("src/parser.c~");
+        remove("src/parser.h~");
+        remove("src/semantic.c~");
+        remove("src/semantic.h~");
+        remove("src/gen_asm.c~");
+        remove("src/gen_asm.h~");
+        remove("src/gen_ir.c~");
+        remove("src/gen_ir.h~");
 
-    if (c_attr.st_mtime > bin_attr.st_mtime) {
-        char *const recompile_cmd[] =
-            { "cc", "-o", "build", "build.c", NULL };
-        run_command(recompile_cmd);
-        char *const new_bin_cmd[] = { "./build", NULL };
-        execvp(new_bin_cmd[0], new_bin_cmd);
+        return 0;
     }
-}
 
-int format_all() {
-    system("indent -kr -nut -brf src/* build.c");
-    system("rm build.c~");
-    system("rm src/*~");
+    cmd_append(&cmd, "cc");
+    cmd_append(&cmd, "-o", "main");
+    cmd_append(&cmd, "src/main.c");
+    cmd_append(&cmd, "src/diagnostics.c");
+    cmd_append(&cmd, "src/lexer.c");
+    cmd_append(&cmd, "src/parser.c");
+    //cmd_append(&cmd, "src/semantic.c");
+    //cmd_append(&cmd, "src/gen_ir.c");
+    //cmd_append(&cmd, "src/gen_asm.c");
+    cmd_append(&cmd, "-Wall");
+    cmd_append(&cmd, "-Wextra");
+    if (cmd_run(&cmd) != 0) return 1;
+
     return 0;
-}
-
-int compile_compiler() {
-    char *const cmd[] = {
-        "cc",
-        "-o", "main",
-        "src/main.c",
-        "src/diagnostics.c",
-        "src/lexer.c",
-        "src/parser.c",
-        //"src/semantic.c",
-        //"src/gen_ir.c",
-        //"src/gen_asm.c",
-        "-Wall",
-        "-Wextra",
-        "-ggdb",
-        NULL
-    };
-    return run_command(cmd);
-}
-
-int main() {
-    rebuild_build();
-    format_all();
-    compile_compiler();
 }

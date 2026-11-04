@@ -289,6 +289,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
                 while (1) {
                     if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
                         break;
+                    } else if (peek_token(lexer).kind == TOKEN_EOF) {
+                        diagnostic_error(token.pos,
+                                         "no matching ')' found");
+                        diagnostic_print_all();
+                        exit(1);
                     }
 
                     da_push(&expr->as.fn.args, parse_expr(lexer, 0));
@@ -309,6 +314,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
                 while (1) {
                     if (accept_token(lexer, TOKEN_CLOSE_PAREN)) {
                         break;
+                    } else if (peek_token(lexer).kind == TOKEN_EOF) {
+                        diagnostic_error(token.pos,
+                                         "no matching ')' found");
+                        diagnostic_print_all();
+                        exit(1);
                     }
 
                     da_push(&expr->as.call.args, parse_expr(lexer, 0));
@@ -349,6 +359,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
         case TOKEN_OPEN_CURLY:
             expr->kind = EXPR_BLOCK;
             while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
+                if (peek_token(lexer).kind == TOKEN_EOF) {
+                    diagnostic_error(token.pos, "no matching '}' found");
+                    diagnostic_print_all();
+                    exit(1);
+                }
                 da_push(&expr->as.block, parse_expr(lexer, 0));
             }
             break;
@@ -356,6 +371,11 @@ Expr *parse_expr(Lexer *lexer, size_t precedence) {
             expr->kind = EXPR_STRUCT;
             expect_token(lexer, TOKEN_OPEN_CURLY);
             while (!accept_token(lexer, TOKEN_CLOSE_CURLY)) {
+                if (peek_token(lexer).kind == TOKEN_EOF) {
+                    diagnostic_error(token.pos, "no matching '}' found");
+                    diagnostic_print_all();
+                    exit(1);
+                }
                 da_push(&expr->as.struct_type.fields,
                         parse_expr(lexer, 0));
             }

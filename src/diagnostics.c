@@ -47,7 +47,9 @@ String_View get_line_from_position(Position position) {
         }
     }
 
-    assert(false);
+    fprintf(stderr, "error: position \"" SV_FMT ":%zu:%zu\" not found\n",
+            SV_ARG(position.filename), position.line, position.col);
+    exit(1);
 }
 
 void diagnostic_add_file(String_View filename, String_View contents) {
