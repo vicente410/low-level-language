@@ -121,15 +121,6 @@ char peek_char(Lexer *lexer) {
     return lexer->peeked_char;
 }
 
-bool accept_char(Lexer *lexer, char ch) {
-    if (peek_char(lexer) == ch) {
-        next_char(lexer);
-        return true;
-    }
-
-    return false;
-}
-
 Token read_id_or_keyword(Lexer *lexer) {
     Token token = { };
     String_Builder sb = { };

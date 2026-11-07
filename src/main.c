@@ -78,22 +78,9 @@ int main(int argc, char **argv) {
     fwrite(assembly.data, 1, assembly.count, f);
     fclose(f);
 
-    char *const cmd[] = { "fasm", asm_name, NULL };
-
-    pid_t pid = fork();
-
-    switch (pid) {
-    case -1:
-        perror("fork");
-        exit(1);
-    case 0:
-        execvp(cmd[0], cmd);
-        perror("execvp");
-        exit(1);
-    default:
-        wait(0);
-    }
-
+    Cmd cmd = {};
+    cmd_append(&cmd, "fasm", asm_name);
+    cmd_run(&cmd);
     remove(asm_name);
 #endif
 
