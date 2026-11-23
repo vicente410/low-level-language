@@ -5,6 +5,6 @@
 #ifndef SEMANTIC_H
 #define SEMANTIC_H
 
-void type_program(AstProgram * program);
+void type_program(Exprs * program);
 
 #endif                          // SEMANTIC_H

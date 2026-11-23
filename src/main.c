@@ -3,7 +3,7 @@
 #include "diagnostics.h"
 #include "lexer.h"
 #include "parser.h"
-//#include "semantic.h"
+#include "semantic.h"
 //#include "gen_ir.h"
 //#include "gen_asm.h"
 #define UTILS_IMPLEMENTATION
@@ -43,17 +43,18 @@ int main(int argc, char **argv) {
 
         return 0;
     }
-#ifdef FALSE
+
     type_program(&ast);
     if (argc == 3 && strcmp(argv[2], "--sem") == 0) {
         for (size_t i = 0; i < ast.count; i++) {
-            String_View ast_sv = decl_to_sv(ast.data[i], 0);
+            String_View ast_sv = expr_to_sv(ast.data[i], 0);
             printf(SV_FMT "\n", SV_ARG(ast_sv));
         }
 
         return 0;
     }
 
+#ifdef FALSE
     IrProgram ir = gen_ir_program(ast);
     if (argc == 3 && strcmp(argv[2], "--ir") == 0) {
         for (size_t i = 0; i < ir.count; i++) {

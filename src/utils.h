@@ -48,6 +48,12 @@
         (da)->data[(da)->count++] = (value);\
     } while (0)
 
+#define da_enqueue(da, value)\
+    do {\
+        da_reserve((da), 1);\
+        (da)->data[((da)->back + (da)->count++) % (da)->capacity] = (value);\
+    } while (0)
+
 #define da_append_raw(da, other, other_count)\
     do {\
         da_reserve((da), (other_count));\
@@ -58,10 +64,14 @@
 #define da_append(da, other) da_append_raw((da), (other)->data, (other)->count)
 
 #define da_at(da, i) (da)->data[assert((da)->count > i), i]
+#define da_queue_at(da, i) (da)->data[assert((da)->count > i), ((da)->back + i) % (da)->capacity]
 #define da_first(da) (da)->data[assert((da)->count > 0), 0]
 #define da_last(da) (da)->data[assert((da)->count > 0), (da)->count - 1]
 #define da_pop(da) (da)->data[assert((da)->count > 0), --(da)->count]
-#define da_foreach(x, da) for (typeof((da)->data[0]) *x = (da)->data; x < (da)->data + (da)->count; x++)
+#define da_dequeue(da) (da)->data[assert((da)->count > 0),\
+                                  --(da)->count,\
+                                  (da)->back = ((da)->back + 1) % (da)->capacity,\
+                                  ((da)->back == 0 ? (da)->capacity : (da)->back) - 1]
 
 // Command and Building
 typedef struct {

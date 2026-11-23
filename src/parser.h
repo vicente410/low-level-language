@@ -5,6 +5,36 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+struct type;
+
+typedef enum {
+    TYPE_NIL,
+    TYPE_BOOL,
+    TYPE_S64,
+    TYPE_U8,
+    TYPE_PTR,
+    TYPE_STRUCT,
+} TypeKind;
+
+typedef struct {
+    String_View name;
+    struct Type *type;
+} StructTypeMember;
+
+typedef struct {
+    StructTypeMember *data;
+    size_t count;
+    size_t capacity;
+} StructTypeMembers;
+
+typedef struct Type {
+    TypeKind kind;
+    union {
+        struct Type *ptr;
+        StructTypeMembers struct_members;
+    } as;
+} Type;
+
 struct Expr;
 
 typedef struct {
@@ -73,7 +103,7 @@ typedef struct {
 } Struct;
 
 typedef struct Expr {
-    //Type *type;
+    Type *type;
     ExprKind kind;
     size_t param_idx;
     union {

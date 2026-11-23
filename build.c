@@ -52,7 +52,7 @@ int main(int argc, char **argv) {
     cmd_append(&cmd, "src/diagnostics.c");
     cmd_append(&cmd, "src/lexer.c");
     cmd_append(&cmd, "src/parser.c");
-    //cmd_append(&cmd, "src/semantic.c");
+    cmd_append(&cmd, "src/semantic.c");
     //cmd_append(&cmd, "src/gen_ir.c");
     //cmd_append(&cmd, "src/gen_asm.c");
     cmd_append(&cmd, "-Wall");

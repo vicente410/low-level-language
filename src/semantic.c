@@ -2,19 +2,19 @@
 #include <stdio.h>
 
 typedef struct {
-    String_View id;
-    Type *type;                 // TYPE_NONE represents a new scope
-    size_t param_idx;
-} IdType;
-
-typedef struct {
-    IdType *data;
+    Decl *data;
     size_t count;
     size_t capacity;
-} IdTypes;
+} Scope;
 
-static Type type_none = (Type) {
-    .kind = TYPE_NONE,
+typedef struct {
+    Scope *data;
+    size_t count;
+    size_t capacity;
+} Scopes;
+
+static Type type_nil = (Type) {
+    .kind = TYPE_NIL,
 };
 
 static Type type_bool = (Type) {
@@ -27,83 +27,26 @@ static Type type_u8 = (Type) {
 
 static Type type_u8_ptr = (Type) {
     .kind = TYPE_PTR,
-    .ptr = &type_u8,
+    .as.ptr = &type_u8,
 };
 
 static Type type_s64 = (Type) {
     .kind = TYPE_S64,
 };
 
-Type *get_type_from_id(IdTypes id_types, String_View id) {
-    for (size_t i = 0; i < id_types.count; i++) {
-        if (sv_eq(id_types.data[i].id, id)) {
-            return id_types.data[i].type;
-        }
+Type *get_type_from_id(Scopes scopes, String_View id) {
+    for (size_t i = 0; i < scopes.count; i++) {
+        for (size_t j = 0; j < scopes.data[i].count; j++) {
+            if (sv_eq(scopes.data[i].data[j].id, id)) {
+                return scopes.data[i].data[j].type;
+            }
+	}
     }
 
-    return &type_none;
+    assert(false);
 }
 
-size_t get_param_idx_from_id(IdTypes id_types, String_View id) {
-    for (size_t i = 0; i < id_types.count; i++) {
-        if (sv_eq(id_types.data[i].id, id)) {
-            return id_types.data[i].param_idx;
-        }
-    }
-
-    return 0;
-}
-
-Args get_fn_args(AstProgram *program, String_View id) {
-    for (size_t i = 0; i < program->count; i++) {
-        if (program->data[i].kind == DECL_FN
-            && sv_eq(program->data[i].as.fn.id, id)) {
-            return program->data[i].as.fn.args;
-        }
-    }
-
-    if (sv_eq_cstr(id, "sys_write")) {
-        Args sys_write = *(Args *) calloc(1, sizeof(Args));
-
-        da_push(&sys_write, ((Arg) {
-                             .id = sv_from_cstr("fd"),.type = &type_s64,}
-                ));
-
-        da_push(&sys_write, ((Arg) {
-                             .id = sv_from_cstr("buf"),.type = &type_u8_ptr}
-                ));
-
-        da_push(&sys_write, ((Arg) {
-                             .id = sv_from_cstr("count"),.type = &type_s64,}
-                ));
-
-        return sys_write;
-    }
-
-
-    fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
-            SV_ARG(id));
-    exit(1);
-}
-
-Type *get_fn_ret_type(AstProgram *program, String_View id) {
-    for (size_t i = 0; i < program->count; i++) {
-        if (program->data[i].kind == DECL_FN
-            && sv_eq(program->data[i].as.fn.id, id)) {
-            return program->data[i].as.fn.ret_type;
-        }
-    }
-
-    if (sv_eq_cstr(id, "sys_write")) {
-        return &type_s64;
-    }
-
-    fprintf(stderr, "ERROR: function '" SV_FMT "' not declared",
-            SV_ARG(id));
-    exit(1);
-}
-
-void start_scope(IdTypes *id_types) {
+/*void start_scope(IdTypes *id_types) {
     da_push(id_types, ((IdType) {
                        .type = &type_none}));
 }
@@ -113,12 +56,14 @@ void end_scope(IdTypes *id_types) {
         (void) da_pop(id_types);
     }
     (void) da_pop(id_types);
-}
+}*/
 
 bool types_match(Type *type1, Type *type2) {
     if (type1->kind == type2->kind) {
         if (type1->kind == TYPE_PTR) {
-            return types_match(type1->ptr, type2->ptr);
+            return types_match(type1->as.ptr, type2->as.ptr);
+	} else if (type1->kind == TYPE_STRUCT) {
+            assert(false && "TODO: implement")
         } else {
             return true;
         }
@@ -127,7 +72,7 @@ bool types_match(Type *type1, Type *type2) {
     }
 }
 
-Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
+Type *type_expr(Expr *expr, Scopes *scopes) {
     switch (expr->kind) {
     case EXPR_BOOL_LIT:
         expr->type = &type_bool;
@@ -138,7 +83,7 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
     case EXPR_STR_LIT:
         expr->type = &type_u8_ptr;
         break;
-    case EXPR_ID:
+    /*case EXPR_ID:
         expr->type = get_type_from_id(*id_types, expr->as.id);
         expr->param_idx = get_param_idx_from_id(*id_types, expr->as.id);
         if (expr->type->kind == TYPE_NONE) {
@@ -230,29 +175,41 @@ Type *type_expr(AstProgram *program, Expr *expr, IdTypes *id_types) {
         }
         break;
     case EXPR_CALL:
-        Args fn_args = get_fn_args(program, expr->as.call.id);
+	Fn fn = get_env(env, expr->as.call.id);
+        //Exprs fn_args = get_fn_args(program, expr->as.call.id);
 
-        if (fn_args.count != expr->as.call.count) {
+        if (fn.args.count != expr->as.call.count) {
             fprintf(stderr, "ERROR: Invalid number of arguments\n");
             exit(1);
         }
 
-        for (size_t i = 0; i < fn_args.count; i++) {
+        for (size_t i = 0; i < fn.args.count; i++) {
             Type *arg_type =
                 type_expr(program, &expr->as.call.data[i], id_types);
-            if (!types_match(arg_type, fn_args.data[i].type)) {
+            if (!types_match(arg_type, fn.args.data[i].type)) {
                 fprintf(stderr, "ERROR: Invalid argument types\n");
                 exit(1);
             }
         }
 
         expr->type = get_fn_ret_type(program, expr->as.call.id);
-        break;
+        break;*/
+    case EXPR_CONST_DECL:
+	type_expr(expr->as.decl.value);
+	da_append(&scopes.data[scopes.count - 1], expr->as.decl);
+        expr->type = &type_nil;
+	break;
+    case EXPR_VAR_DECL:
+	type_expr(expr->as.decl.value);
+	da_append(&scopes.data[scopes.count - 1], expr->as.decl);
+        expr->type = &type_nil;
+	break;
     }
 
     return expr->type;
 }
 
+#ifdef FALSE
 void type_stmt(AstProgram *program, Stmt *stmt, IdTypes *id_types) {
     switch (stmt->kind) {
     case STMT_RET:
@@ -338,10 +295,17 @@ void type_fn(AstProgram *program, AstFn *fn) {
         type_stmt(program, &fn->body.data[i], &id_types);
     }
 }
+#endif
 
-void type_program(AstProgram *program) {
+void type_program(Exprs *program) {
+    Scopes scopes = { };
+
     for (size_t i = 0; i < program->count; i++) {
-        assert(program->data[i].kind == DECL_FN);
-        type_fn(program, &program->data[i].as.fn);
+	if (program->data[i]->kind != EXPR_CONST_DECL &&
+	    program->data[i]->kind != EXPR_VAR_DECL) {
+		assert(false && "TODO: implement");
+	}
+
+        type_expr(program->data[i], &scopes);
     }
 }
